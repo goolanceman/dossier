@@ -25,6 +25,7 @@ import { findUnfinishedJobs, startJob } from "@/lib/jobs/runner";
 import { emailJobKey, writeEmailJob } from "@/lib/jobs/write-email";
 import { writeDocumentJob, writeDocumentJobKey } from "@/lib/jobs/write-document";
 import { scoreResumeJob, scoreResumeJobKey } from "@/lib/jobs/score-resume";
+import { applyApplicationFindingsJob, applyApplicationFindingsJobKey, critiqueApplicationResumeJob, critiqueApplicationResumeJobKey } from "./resume-quality-jobs";
 import { scoringProblem } from "@/lib/scoring";
 import { prisma } from "@/lib/prisma";
 import { loadProfile } from "@/lib/profile-data";
@@ -645,6 +646,31 @@ export const startScoringResume = action(z.object({ id: z.string().min(1) }), as
   const [running] = await findUnfinishedJobs(key);
   return running?.id ?? startJob(scoreResumeJob, { applicationId: id }, { key, applicationId: id });
 });
+
+// ─── The Resume quality tab (master.md §5: critique and apply) ──────────────
+
+/** "Critique this resume" on the Resume quality tab: critiques the tailored resume in the background and returns the job's id. Asking again while it runs follows the same job. */
+export const startCritiquingResume = action(z.object({ id: z.string().min(1) }), async ({ id }) => {
+  const resume = await prisma.document.findUnique({ where: { applicationId_kind: { applicationId: id, kind: DocumentKind.RESUME } }, select: { id: true } });
+  if (!resume) throw new ActionError((await prisma.application.count({ where: { id } })) ? "Write the tailored resume first." : GONE);
+  if (!(await isAiConfigured())) throw new ActionError("That needs an AI provider. Choose one in Settings → AI provider.");
+  const key = critiqueApplicationResumeJobKey(id);
+  const [running] = await findUnfinishedJobs(key);
+  return running?.id ?? startJob(critiqueApplicationResumeJob, { applicationId: id }, { key, applicationId: id });
+});
+
+/** "Apply N findings" on the Resume quality tab: applies the checked findings in the background and returns the job's id. Asking again while it runs follows the same job. */
+export const startApplyingFindings = action(
+  z.object({ id: z.string().min(1), critiqueId: z.string().min(1), findingIds: z.array(z.string().min(1)).min(1) }),
+  async ({ id, critiqueId, findingIds }) => {
+    const resume = await prisma.document.findUnique({ where: { applicationId_kind: { applicationId: id, kind: DocumentKind.RESUME } }, select: { id: true } });
+    if (!resume) throw new ActionError((await prisma.application.count({ where: { id } })) ? "Write the tailored resume first." : GONE);
+    if (!(await isAiConfigured())) throw new ActionError("That needs an AI provider. Choose one in Settings → AI provider.");
+    const key = applyApplicationFindingsJobKey(id);
+    const [running] = await findUnfinishedJobs(key);
+    return running?.id ?? startJob(applyApplicationFindingsJob, { applicationId: id, critiqueId, findingIds }, { key, applicationId: id });
+  },
+);
 
 // ─── The email (Email tab) ───────────────────────────────────────────────────
 

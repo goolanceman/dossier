@@ -105,4 +105,45 @@ describe("buildDigest", () => {
     const digest = await buildDigest();
     expect(digest.nextActions).toEqual(["Review 1 shortlisted job", "Answer 1 open gap question", "Run discovery for 1 paused profile"]);
   });
+
+  it("adds the master-resume and career-plan steps only from real rows", async () => {
+    // Nothing to build a resume from and no plan: neither step appears.
+    const quiet = await buildDigest();
+    expect(quiet.nextActions).toEqual([]);
+
+    // Experience on the profile and no master resume yet: build one.
+    await prisma().experience.create({ data: { role: "Backend Engineer", company: "Ledgerly", bullets: "Built the ingestion pipeline." } });
+    const withoutMaster = await buildDigest();
+    expect(withoutMaster.nextActions).toContain("Build your master resume from a critique in Resume intelligence");
+
+    // Once a master resume exists, that step goes.
+    await prisma().document.create({ data: { kind: "RESUME", units: [{ id: "summary", label: "Summary", text: "The master resume." }] } });
+    const withMaster = await buildDigest();
+    expect(withMaster.nextActions).not.toContain("Build your master resume from a critique in Resume intelligence");
+
+    // A plan's undone actions are counted leniently; done ones and junk rows don't count.
+    await prisma().careerPlan.create({
+      data: {
+        items: {
+          goals: [
+            {
+              id: "g1",
+              title: "Move to senior roles",
+              horizon: "NOW",
+              why: "Two strong matches ask for lead experience.",
+              actions: [
+                { id: "a1", action: "Apply the critique findings to the master resume", effort: "LIGHT", evidenceIds: [] },
+                { id: "a2", action: "Ask a mentor for a mock interview", effort: "MEDIUM", evidenceIds: [], done: true },
+              ],
+              milestones: ["Lead one project end to end"],
+            },
+          ],
+          risks: [],
+        },
+      },
+    });
+    await prisma().careerPlan.create({ data: { items: "not a plan" } });
+    const withPlan = await buildDigest();
+    expect(withPlan.nextActions).toContain("1 career-plan action to check off in Career");
+  });
 });

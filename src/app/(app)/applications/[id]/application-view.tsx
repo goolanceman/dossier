@@ -62,6 +62,7 @@ import {
   undoMessage,
 } from "./actions";
 import { ResumeScore } from "./resume-score";
+import { ResumeQuality, type ResumeQualityView } from "./resume-quality";
 import { WriteMissingDocument } from "./write-missing-document";
 import { ApplicationHeader } from "./application-header";
 import { ApplicationMenu } from "./application-menu";
@@ -142,6 +143,8 @@ export type ApplicationViewProps = {
   meta: string[];
   resume: DocumentData | null;
   letter: DocumentData | null;
+  /** The Resume quality tab's data (master.md §5), when the application has a tailored resume. */
+  resumeQuality?: ResumeQualityView | null;
   /** Every theme, for the Theme menu (#226), and which is the base theme. */
   themes: ThemeData[];
   baseThemeId: string;
@@ -205,6 +208,7 @@ export function ApplicationView({
   activity,
   resume,
   letter,
+  resumeQuality = null,
   themes,
   baseThemeId,
   sections,
@@ -713,6 +717,7 @@ export function ApplicationView({
         {/* Its underline runs the header's full width, under the padding too. */}
         <TabsList aria-label="Application" className="-mx-10 px-10">
           <TabsTrigger value="resume">Resume</TabsTrigger>
+          <TabsTrigger value="resume-quality">Resume quality</TabsTrigger>
           <TabsTrigger value="letter">Cover letter</TabsTrigger>
           <TabsTrigger value="email">Email</TabsTrigger>
           {gmail && (gmail.reading || gmail.emails.length > 0) && (
@@ -781,6 +786,17 @@ export function ApplicationView({
           ) : (
             <WriteMissingDocument applicationId={application.id} kind={DocumentKind.RESUME} aiReady={aiReady} writing={writingDocuments.resume} />
           )}
+        </TabsContent>
+
+        <TabsContent value="resume-quality" className="flex min-h-0 min-w-0 flex-[999_1_480px]">
+          <ResumeQuality
+            applicationId={application.id}
+            company={application.company}
+            resume={resume}
+            quality={resumeQuality}
+            aiReady={aiReady}
+            onOpenResume={() => selectTab("resume")}
+          />
         </TabsContent>
 
         <TabsContent value="letter" className="flex min-h-0 min-w-0 flex-[999_1_480px]">

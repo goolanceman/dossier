@@ -4,10 +4,12 @@ import type { ResumeCritique } from "@/lib/ai/task-contracts";
 import { isAiConfigured } from "@/lib/ai/config";
 import { MockProvider } from "@/lib/ai/providers/mock";
 import { createTarget, listTargets } from "@/lib/career/targets";
+import { demoProfile } from "@/lib/demo-profile";
+import { profileResumeText } from "@/lib/resume-intel/base-resume-text";
 import { findingsByPriority, getCritique, listCritiques, saveCritique } from "@/lib/resume-intel/critique";
 import { createTestClient, resetDatabase } from "@/test/db";
 
-import { deleteCritique, openCritique, runCritique } from "./actions";
+import { deleteCritique, openCritique, runBaseCritique, runCritique } from "./actions";
 import { critiqueResumeJob } from "./jobs";
 
 // The critique flow against the database (master.md §5.1–5.2): the action
@@ -35,6 +37,13 @@ vi.mock("@/lib/profile-data", async () => {
 vi.mock("@/lib/jobs/runner", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/jobs/runner")>()),
   startJob: vi.fn(async () => "job-1"),
+}));
+// The master document's lib is another flow's work; the critique job never touches it.
+vi.mock("@/lib/resume-intel/master", () => ({
+  masterUnitsFromProfile: vi.fn(() => []),
+  getMasterDocument: vi.fn(async () => null),
+  saveMasterDocument: vi.fn(),
+  validateAppliedUnits: vi.fn(() => []),
 }));
 
 const prisma = () => db.client!;
@@ -75,10 +84,12 @@ beforeEach(async () => {
 afterAll(() => prisma().$disconnect());
 
 describe("runCritique", () => {
-  it("starts a critique job for pasted text", async () => {
+  it("starts a critique job for pasted text, carrying the file mode and the text in the job input", async () => {
     const target = (await listTargets())[0]!;
     const result = await runCritique({ content: RESUME, targetId: target.id });
     expect(result).toMatchObject({ ok: true, data: { jobId: "job-1" } });
+    const { startJob } = await import("@/lib/jobs/runner");
+    expect(startJob).toHaveBeenCalledWith(critiqueResumeJob, { mode: "FILE", content: RESUME, fileName: "", targetId: target.id });
   });
 
   it("refuses to run without an AI provider", async () => {
@@ -93,10 +104,21 @@ describe("runCritique", () => {
   });
 });
 
+describe("runBaseCritique", () => {
+  it("starts a critique job with the BASE mode and no resume text in the input", async () => {
+    // The "no provider" test below leaves the mock off; a provider is set up here.
+    vi.mocked(isAiConfigured).mockResolvedValue(true);
+    const result = await runBaseCritique({ targetId: "" });
+    expect(result).toMatchObject({ ok: true, data: { jobId: "job-1" } });
+    const { startJob } = await import("@/lib/jobs/runner");
+    expect(startJob).toHaveBeenCalledWith(critiqueResumeJob, { mode: "BASE", targetId: "" });
+  });
+});
+
 describe("critiqueResumeJob.run", () => {
   it("critiques against the profile and the chosen target, then stores the answer verbatim", async () => {
     const target = (await listTargets())[0]!;
-    const { critiqueId } = await critiqueResumeJob.run({ content: RESUME, fileName: "cv.pdf", targetId: target.id }, context);
+    const { critiqueId } = await critiqueResumeJob.run({ mode: "FILE", content: RESUME, fileName: "cv.pdf", targetId: target.id }, context);
 
     const row = await getCritique(critiqueId);
     expect(row).toMatchObject({
@@ -116,8 +138,18 @@ describe("critiqueResumeJob.run", () => {
   });
 
   it("falls back to a general critique when the target is gone", async () => {
-    await critiqueResumeJob.run({ content: RESUME, fileName: "", targetId: "gone" }, context);
+    await critiqueResumeJob.run({ mode: "FILE", content: RESUME, fileName: "", targetId: "gone" }, context);
     expect(await listCritiques()).toMatchObject([{ fileName: "", targetId: null }]);
+  });
+
+  it("builds the base resume's text from the profile itself when the mode is BASE", async () => {
+    const { critiqueId } = await critiqueResumeJob.run({ mode: "BASE", targetId: "" }, context);
+    const row = await getCritique(critiqueId);
+    // No file was uploaded, so the critique is of the base resume.
+    expect(row).toMatchObject({ fileName: "", content: profileResumeText(demoProfile()) });
+    // The task still saw the resume the profile builds, not an empty string.
+    const prompt = (db.provider as MockProvider).calls[0].messages[0].content;
+    expect(prompt).toContain("Jane Doe");
   });
 });
 

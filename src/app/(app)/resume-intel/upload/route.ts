@@ -35,6 +35,6 @@ export const POST = route(async (request) => {
   const query = uploadQuery.parse(Object.fromEntries(request.nextUrl.searchParams));
   const read = await resumeText(new Uint8Array(await request.arrayBuffer()));
   if (!read.ok) return NextResponse.json({ error: read.error }, { status: 400 });
-  const jobId = await startJob(critiqueResumeJob, { content: read.text, fileName: query.fileName, targetId: query.targetId });
+  const jobId = await startJob(critiqueResumeJob, { mode: "FILE", content: read.text, fileName: query.fileName, targetId: query.targetId });
   return NextResponse.json({ jobId });
 });

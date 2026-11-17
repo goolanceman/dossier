@@ -15,10 +15,11 @@ import {
   updateAchievement,
 } from "@/lib/career/achievements";
 import { createDoc, deleteDoc, docInputSchema, getDoc, updateDoc } from "@/lib/career/knowledge";
+import { deleteCareerPlan, setActionDone } from "@/lib/career/plan";
 import { createTarget, deleteTarget, getTarget, listTargets, reorderTargets, updateTarget } from "@/lib/career/targets";
 import { startJob } from "@/lib/jobs/runner";
 
-import { reviewKnowledgeDocJob } from "./jobs";
+import { careerPlanJob, reviewKnowledgeDocJob } from "./jobs";
 
 // The career screen's actions (master.md Phase 1): thin wrappers around the
 // lib functions, signed in and validated. Statuses VERIFIED, USER_CONFIRMED
@@ -138,4 +139,34 @@ export const reviewDoc = action(idSchema, async ({ id }) => {
   if (!doc) throw new ActionError("The document is no longer there.");
   if (doc.content.trim() === "") throw new ActionError("This document has no text to review. Paste its content first.");
   return { jobId: await startJob(reviewKnowledgeDocJob, { docId: id }, { key: `knowledge-doc:${id}` }) };
+});
+
+// ── Career plan (master.md Phase 5 extension) ─────────────────────────────────
+
+const basedOnSchema = z.enum(["RESUME", "PROFILE", "ASSESSMENT"]);
+
+/** "Generate plan": the AI draws the goals in the background; the screen follows the job's id. */
+export const generateCareerPlan = action(
+  z.object({ basedOn: basedOnSchema, targetId: z.string().max(50).optional() }),
+  async ({ basedOn, targetId }) => {
+    return { jobId: await startJob(careerPlanJob, { basedOn, ...(targetId ? { targetId } : {}) }, { key: "career-plan" }) };
+  },
+);
+
+/** Checks or unchecks one action of a plan. */
+export const toggleAction = action(
+  z.object({ planId: z.string().min(1), actionId: z.string().min(1), done: z.boolean() }),
+  async ({ planId, actionId, done }) => {
+    const saved = await setActionDone(planId, actionId, done);
+    if (!saved) throw new ActionError("The plan is no longer there.");
+    withRefresh();
+    return saved;
+  },
+);
+
+/** Removes a plan for good. The achievements it pointed at stay in the library. */
+export const removePlan = action(idSchema, async ({ id }) => {
+  await deleteCareerPlan(id);
+  withRefresh();
+  return null;
 });

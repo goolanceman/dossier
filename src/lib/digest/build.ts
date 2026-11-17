@@ -2,8 +2,10 @@ import "server-only";
 
 import { z } from "zod";
 
-import { AssessmentDecision, GapQuestionStatus, SalaryStatus } from "@/generated/prisma/enums";
+import { AssessmentDecision, DocumentKind, GapQuestionStatus, SalaryStatus } from "@/generated/prisma/enums";
+import { hasResumeContent, planItemsSchema } from "@/lib/career/plan";
 import { prisma } from "@/lib/prisma";
+import { loadProfile } from "@/lib/profile-data";
 
 // The daily digest (master.md Phase 15): what discovery did in the last 24
 // hours, the best matches it found, new salary figures, and what's waiting
@@ -79,20 +81,35 @@ function reasonsOf(value: unknown): string[] {
   return parsed.success ? parsed.data : [];
 }
 
+/** The goals of a plan's items column, read leniently: junk in the column reads as none (the plan lib's own schema). */
+function planGoals(items: unknown) {
+  return planItemsSchema.parse((items as { goals?: unknown } | null)?.goals);
+}
+
 /** The honest next steps: only the ones with something behind them. */
-function nextActions(counts: z.output<typeof countsSchema>, bestMatches: number, gapQuestionsOpen: number, pausedProfiles: number): string[] {
+async function nextActions(
+  counts: z.output<typeof countsSchema>,
+  bestMatches: number,
+  gapQuestionsOpen: number,
+  pausedProfiles: number,
+  extras: { resumeMissing: boolean; undonePlanActions: number },
+): Promise<string[]> {
   const actions: string[] = [];
   const review = counts.shortlisted > 0 ? counts.shortlisted : bestMatches;
   if (review > 0) actions.push(`Review ${review} shortlisted ${review === 1 ? "job" : "jobs"}`);
   if (gapQuestionsOpen > 0) actions.push(`Answer ${gapQuestionsOpen} open gap ${gapQuestionsOpen === 1 ? "question" : "questions"}`);
   if (pausedProfiles > 0) actions.push(`Run discovery for ${pausedProfiles} paused ${pausedProfiles === 1 ? "profile" : "profiles"}`);
+  // The master resume (master.md §5.5): point at Resume intelligence while the profile can build one and none exists.
+  if (extras.resumeMissing) actions.push("Build your master resume from a critique in Resume intelligence");
+  if (extras.undonePlanActions > 0)
+    actions.push(`${extras.undonePlanActions} career-plan ${extras.undonePlanActions === 1 ? "action" : "actions"} to check off in Career`);
   return actions;
 }
 
 /** Builds the digest for the 24 hours before `now`, from the database alone. */
 export async function buildDigest(now = new Date()): Promise<Digest> {
   const since = new Date(now.getTime() - DAY_MS);
-  const [runs, assessments, gapQuestionsOpen, salaries, pausedProfiles] = await Promise.all([
+  const [runs, assessments, gapQuestionsOpen, salaries, pausedProfiles, profile, masterResume, plans] = await Promise.all([
     prisma.discoveryRun.findMany({ where: { createdAt: { gte: since } }, select: { stats: true } }),
     prisma.jobAssessment.findMany({
       where: {
@@ -112,6 +129,9 @@ export async function buildDigest(now = new Date()): Promise<Digest> {
       select: { company: true, title: true, minimum: true, maximum: true, median: true, currency: true, basis: true },
     }),
     prisma.jobSearchProfile.count({ where: { enabled: false } }),
+    loadProfile(),
+    prisma.document.findFirst({ where: { applicationId: null, kind: DocumentKind.RESUME }, select: { id: true } }),
+    prisma.careerPlan.findMany({ select: { items: true } }),
   ]);
 
   const counts = runs.reduce(
@@ -152,7 +172,10 @@ export async function buildDigest(now = new Date()): Promise<Digest> {
     bestMatches,
     salaryInsights,
     gapQuestionsOpen,
-    nextActions: nextActions(counts, bestMatches.length, gapQuestionsOpen, pausedProfiles),
+    nextActions: await nextActions(counts, bestMatches.length, gapQuestionsOpen, pausedProfiles, {
+      resumeMissing: masterResume === null && hasResumeContent(profile),
+      undonePlanActions: plans.reduce((sum, plan) => sum + planGoals(plan.items).flatMap((goal) => goal.actions).filter((action) => !action.done).length, 0),
+    }),
   });
 }
 

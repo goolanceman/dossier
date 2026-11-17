@@ -7,6 +7,7 @@ describe("tabFrom", () => {
     expect(tabFrom("letter")).toBe("letter");
     expect(tabFrom("email")).toBe("email");
     expect(tabFrom("posting")).toBe("posting");
+    expect(tabFrom("resume-quality")).toBe("resume-quality");
     expect(tabFrom(undefined)).toBe("resume");
     expect(tabFrom("nope")).toBe("resume");
     expect(tabFrom(["letter", "posting"])).toBe("resume");

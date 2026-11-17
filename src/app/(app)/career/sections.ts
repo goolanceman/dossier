@@ -1,8 +1,9 @@
-/** The career sections, in order (master.md Phase 1: evidence, targets, knowledge base). */
+/** The career sections, in order (master.md Phase 1: evidence, targets, knowledge base; Phase 5: the plan). */
 export const CAREER_SECTIONS = [
   { id: "achievements", label: "Achievements" },
   { id: "targets", label: "Targets" },
   { id: "knowledge", label: "Knowledge base" },
+  { id: "plan", label: "Career plan" },
 ] as const;
 
 export type CareerSectionId = (typeof CAREER_SECTIONS)[number]["id"];

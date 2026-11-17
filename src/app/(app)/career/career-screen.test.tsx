@@ -84,10 +84,11 @@ describe("CareerScreen", () => {
     expect(screen.getByRole("heading", { level: 1, name: "Career" })).toBeInTheDocument();
     const nav = screen.getByRole("navigation", { name: "Career sections" });
     const links = within(nav).getAllByRole("link");
-    expect(links.map((link) => link.textContent)).toEqual(["Achievements", "Targets", "Knowledge base"]);
+    expect(links.map((link) => link.textContent)).toEqual(["Achievements", "Targets", "Knowledge base", "Career plan"]);
     expect(within(nav).getByRole("link", { name: "Targets" })).toHaveAttribute("aria-current", "page");
     expect(within(nav).getByRole("link", { name: "Targets" })).toHaveAttribute("href", "/career?section=targets");
     expect(within(nav).getByRole("link", { name: "Achievements" })).toHaveAttribute("href", "/career?section=achievements");
+    expect(within(nav).getByRole("link", { name: "Career plan" })).toHaveAttribute("href", "/career?section=plan");
     expect(screen.getByText("Section body")).toBeInTheDocument();
   });
 });

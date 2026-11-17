@@ -22,3 +22,5 @@ export { MOCK_FEEDBACK_VERSION, mockFeedback, mockFeedbackFrom, type MockFeedbac
 export { COMPANY_RESEARCH_VERSION, companyResearch, companyResearchFrom, type CompanyResearchAnswer, type CompanyResearchInput } from "./company-research";
 export { LEARNING_PLAN_VERSION, learningPlan, learningPlanFrom, type LearningPlanAnswer, type LearningPlanInput } from "./learning-plan";
 export { DOC_FINDINGS_VERSION, docFindings, docFindingsFrom, type DocFindingsAnswer, type DocFindingsInput } from "./doc-findings";
+export { APPLY_FINDINGS_VERSION, applyFindings, applyFindingsFrom, type ApplyFindingsAnswer, type ApplyFindingsInput } from "./apply-findings";
+export { CAREER_PLAN_VERSION, careerPlan, careerPlanFrom, type CareerPlanAnswer, type CareerPlanInput } from "./career-plan";

@@ -31,6 +31,7 @@ import { DocumentKind, GapQuestionStatus, LearningStatus, SalaryStatus } from "@
 
 import { ApplicationView } from "./application-view";
 import { IntelligencePanel, type IntelligenceView } from "./intelligence-panel";
+import { loadResumeQuality } from "./resume-quality-data";
 import { metaLine } from "./meta";
 import { tabFrom } from "./tabs";
 
@@ -178,6 +179,10 @@ export default async function ApplicationPage({ params, searchParams }: PageProp
   const fileName = (doc: "RESUME" | "COVER_LETTER") =>
     resolveFileName(settings.fileNamePattern, { name: profile.basics.name, company: application.company, role: application.role, doc, date: new Date() });
 
+  // The Resume quality tab's data (master.md §5): the tailored document's
+  // id, evidence and newest critique, null without a tailored resume.
+  const resumeQuality = await loadResumeQuality(id, company);
+
   return (
     <>
     <ApplicationView
@@ -209,6 +214,7 @@ export default async function ApplicationPage({ params, searchParams }: PageProp
       meta={metaLine(application)}
       resume={resume}
       letter={letter}
+      resumeQuality={resumeQuality}
       themes={themes}
       baseThemeId={settings.baseThemeId}
       email={email}

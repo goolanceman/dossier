@@ -7,6 +7,7 @@ import { countPdfPages, printBasePath } from "@/lib/pdf/pages";
 import { renderPdf } from "@/lib/pdf/render";
 import { prisma } from "@/lib/prisma";
 import { loadProfileName } from "@/lib/profile-data";
+import { getMasterDocumentById } from "@/lib/resume-intel/master";
 import { loadSettings } from "@/lib/settings-data";
 import { route } from "@/lib/route";
 import { FIT_LEVELS } from "@/lib/themes";
@@ -22,8 +23,9 @@ const notFound = (error: string) => NextResponse.json({ error }, { status: 404 }
 /**
  * Downloads a document as a PDF (RES-5, APP-12): `?doc=base` for the base
  * resume, `?doc=resume&application={id}` or `?doc=letter&application={id}`
- * for an application's tailored resume or cover letter. The file is named
- * with Settings → PDF file name (SET-8).
+ * for an application's tailored resume or cover letter, and
+ * `?doc=resume&document={id}` for the master resume (master.md §5.5). The
+ * file is named with Settings → PDF file name (SET-8).
  */
 export const GET = route(async (request) => {
   const rendered = await renderRequested(request);
@@ -56,6 +58,16 @@ async function renderRequested(request: NextRequest): Promise<{ pdf: Uint8Array;
   }
 
   if (doc !== "resume" && doc !== "letter") return notFound("There's no such document to download.");
+  // A master resume downloads by its own document id (master.md §5.5): ?doc=resume&document={id}. No company or role, like the base resume's file name.
+  const documentId = params.get("document") ?? "";
+  if (doc === "resume" && documentId !== "") {
+    const master = APPLICATION_ID.test(documentId) ? await getMasterDocumentById(documentId) : null;
+    if (!master) return notFound("This master resume no longer exists.");
+    return {
+      pdf: await renderPdf(`/print/resume/${master.id}`),
+      fileName: resolveFileName(settings.fileNamePattern, { name, doc: DocumentKind.RESUME, date }),
+    };
+  }
   const id = params.get("application") ?? "";
   const application = APPLICATION_ID.test(id)
     ? await prisma.application.findUnique({
