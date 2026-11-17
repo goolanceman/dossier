@@ -19,11 +19,34 @@ services:
     volumes:
       # Postgres 18+ keeps data in a versioned subdirectory, so mount the parent.
       - pgdata:/var/lib/postgresql
+      # Restores backup/dump.sql automatically, but only on a brand-new
+      # (empty) pgdata volume — Postgres' own initdb.d convention.
+      - ./backup/dump.sql:/docker-entrypoint-initdb.d/dump.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U dossier -d dossier"]
       interval: 5s
       timeout: 5s
       retries: 10
+
+  # One-off: restores backup/data.tar.gz into the data volume, but only if
+  # that volume is still empty (a fresh deploy). Safe to run on every
+  # `docker compose up -d`; it's a no-op once data exists.
+  restore-data:
+    image: alpine:3
+    restart: "no"
+    volumes:
+      - data:/data
+      - ./backup/data.tar.gz:/backup/data.tar.gz:ro
+    entrypoint:
+      - sh
+      - -c
+      - |
+        if [ -z "$$(ls -A /data 2>/dev/null)" ]; then
+          echo 'data volume is empty, restoring from backup/data.tar.gz'
+          tar xzf /backup/data.tar.gz -C /data
+        else
+          echo 'data volume already has data, skipping restore'
+        fi
 
   app:
     image: ${DOSSIER_IMAGE:-ghcr.io/aientech/dossier:latest}
@@ -31,6 +54,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      restore-data:
+        condition: service_completed_successfully
     environment:
       DATABASE_URL: postgresql://dossier:${POSTGRES_PASSWORD}@db:5432/dossier
       DOSSIER_PASSWORD: ${DOSSIER_PASSWORD:?Set DOSSIER_PASSWORD in .env to a hash from hash-password}

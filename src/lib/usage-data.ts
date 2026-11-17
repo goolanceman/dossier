@@ -10,9 +10,9 @@ import { usageFigures, usageSince, type UsageEntry, type UsageFigures } from "./
  * Keeps one answered request's tokens (#290). Resolves either way: a count
  * that can't be written is logged, and never fails the request that used it.
  */
-export async function recordUsage({ task, provider, model, input, output }: UsageEntry): Promise<void> {
+export async function recordUsage({ task, provider, model, input, output, cachedTokens, durationMs, success, error }: UsageEntry): Promise<void> {
   try {
-    await prisma.aiUsage.create({ data: { task, provider, model, inputTokens: input, outputTokens: output } });
+    await prisma.aiUsage.create({ data: { task, provider, model, inputTokens: input, outputTokens: output, cachedTokens, durationMs, success, error } });
   } catch (error) {
     logServerError("Usage", error);
   }

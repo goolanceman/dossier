@@ -185,6 +185,7 @@ export function AgentScreen({ view }: { view: AgentView }) {
                       Approve
                     </Button>
                     <OpenPosting url={candidate.url} />
+                    <JobIntelligenceLink postingId={candidate.postingId} />
                     <Button variant="danger-text" size="sm" className="ml-auto" onClick={() => setConfirming(candidate)}>
                       Dismiss
                     </Button>
@@ -312,6 +313,16 @@ function OpenPosting({ url }: { url: string }) {
   );
 }
 
+/** The candidate's page under Job intelligence, when its posting row was kept: /intelligence/<id> needs it (E14-5). */
+function JobIntelligenceLink({ postingId }: { postingId: string | null }) {
+  if (!postingId) return null;
+  return (
+    <Link href={`/intelligence/${postingId}`} className={buttonClassName("secondary", "sm")}>
+      Job intelligence
+    </Link>
+  );
+}
+
 /** A posting the agent found: what it is, its score and why. The actions go below. */
 function CandidateCard({ candidate, children }: { candidate: AgentCandidateView; children: ReactNode }) {
   return (
@@ -387,6 +398,7 @@ function ScoredCard({ candidate, onDismiss }: { candidate: AgentCandidateView; o
         {preparing ? "Preparing draft…" : "Prepare draft"}
       </Button>
       <OpenPosting url={candidate.url} />
+      <JobIntelligenceLink postingId={candidate.postingId} />
       {preparing && job?.step && (
         <span role="status" className="text-meta text-muted">
           {job.step}

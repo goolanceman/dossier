@@ -494,6 +494,12 @@ function PostingDetail({
             <span className="sr-only"> (opens in a new tab)</span>
           </a>
         )}
+        {/* Job intelligence reads one posting's whole picture; it needs the posting's row, which only a kept one has (E14-5). */}
+        {state.postingId && (
+          <Link href={`/intelligence/${state.postingId}`} className={buttonClassName("secondary", "sm")}>
+            Job intelligence
+          </Link>
+        )}
         <Button variant="secondary" size="sm" aria-disabled={scoring ? true : undefined} onClick={scoring ? undefined : onScore}>
           {scoring ? "Scoring…" : state.score ? "Score again" : "Score"}
         </Button>

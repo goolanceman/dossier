@@ -312,6 +312,16 @@ describe("the results", () => {
     expect(screen.getByRole("link", { name: "Open the application" })).toHaveAttribute("href", "/applications/app-1");
   });
 
+  it("links a kept posting to its job intelligence page (E14-5)", () => {
+    renderScreen({ search: stored([posting("a", { state: { ...state, postingId: "p1", saved: true } })]) });
+    expect(screen.getByRole("link", { name: "Job intelligence" })).toHaveAttribute("href", "/intelligence/p1");
+  });
+
+  it("has no job intelligence link while the posting isn't kept", () => {
+    renderScreen({ search: stored([posting("a")]) });
+    expect(screen.queryByRole("link", { name: "Job intelligence" })).not.toBeInTheDocument();
+  });
+
   it("says when nothing was found", () => {
     renderScreen({ search: stored([]) });
     expect(screen.getByText("No postings for “product designer” within 25 km of Hamburg. Try a bigger radius or fewer words.")).toBeInTheDocument();

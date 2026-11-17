@@ -2,7 +2,7 @@ import "server-only";
 
 import { AgentCandidateStatus, JobStatus } from "@/generated/prisma/enums";
 import { formatDateTime } from "@/lib/dates";
-import { postedAgo, type JobSource } from "@/lib/job-search/search";
+import { postedAgo, postingKey, type JobSource } from "@/lib/job-search/search";
 import { SOURCE_INFO } from "@/lib/job-search/sources";
 import { prisma } from "@/lib/prisma";
 import { loadSettings } from "@/lib/settings-data";
@@ -41,6 +41,8 @@ export type AgentCandidateView = {
   applicationId: string | null;
   /** The job preparing its draft, while one is queued or running. */
   draftJobId: string | null;
+  /** The posting's row, when one was kept from it (a draft, or Find jobs kept the same posting): /intelligence/<id> needs it. */
+  postingId: string | null;
 };
 
 export type AgentView = {
@@ -118,6 +120,13 @@ export async function loadAgentView(now = new Date()): Promise<AgentView> {
   }
   const draftJob = new Map(draftJobs.map((job) => [job.key?.replace(/^agent-candidate:/, ""), job.id]));
 
+  // Which candidates have a kept Posting row, for the intelligence-page links (master.md Phase 3).
+  const keptPostings = await prisma.posting.findMany({
+    where: { OR: candidates.map(({ source, externalId }) => ({ source, externalId })) },
+    select: { id: true, source: true, externalId: true },
+  });
+  const postingIdByRef = new Map(keptPostings.map((row) => [postingKey({ source: row.source, externalId: row.externalId }), row.id]));
+
   const setupProblem = await agentSetupProblem();
 
   const view = (candidate: (typeof candidates)[number]): AgentCandidateView => ({
@@ -140,6 +149,7 @@ export async function loadAgentView(now = new Date()): Promise<AgentView> {
     error: candidate.error,
     applicationId: candidate.applicationId,
     draftJobId: draftJob.get(candidate.id) ?? null,
+    postingId: postingIdByRef.get(postingKey({ source: candidate.source, externalId: candidate.externalId })) ?? null,
   });
   const drafts = candidates.filter((candidate) => candidate.status === AgentCandidateStatus.DRAFTED && candidate.applicationId).map(view);
   const waiting = candidates.filter((candidate) => candidate.status !== AgentCandidateStatus.DRAFTED);

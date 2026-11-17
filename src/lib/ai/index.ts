@@ -1,5 +1,10 @@
 import "server-only";
 
+import type { UsageSink } from "@/lib/usage";
+
+/** Swallows usage reports, for callers that record their own richer rows (master.md §11.4). */
+const noopSink: UsageSink = () => {};
+
 import { AiProvider } from "@/generated/prisma/enums";
 import { recordUsage } from "@/lib/usage-data";
 
@@ -20,20 +25,20 @@ export type { AIProvider, ChatMessage, CompletionRequest, JsonCompletionRequest 
  * A provider for `config`, keeping each answer's tokens for the Usage screen.
  * A saved key that can't be read stops hosted providers with a clear message.
  */
-export function createProvider(config: AiConfig): AIProvider {
+export function createProvider(config: AiConfig, onUsage: UsageSink | null = recordUsage): AIProvider {
   const { provider, baseUrl, model, apiKey, apiKeyProblem, timeoutMs } = config;
   if (apiKeyProblem && providerOption(provider).apiKey) throw AiError.config(apiKeyProblem);
   switch (provider) {
     case AiProvider.LOCAL:
-      return new LocalProvider(baseUrl, model, timeoutMs, recordUsage);
+      return new LocalProvider(baseUrl, model, timeoutMs, onUsage ?? noopSink);
     case AiProvider.OPENAI:
-      return new OpenAICompatibleProvider("OPENAI", baseUrl, apiKey, model, timeoutMs, recordUsage);
+      return new OpenAICompatibleProvider("OPENAI", baseUrl, apiKey, model, timeoutMs, onUsage ?? noopSink);
     case AiProvider.ANTHROPIC:
-      return new AnthropicProvider(baseUrl, apiKey, model, timeoutMs, recordUsage);
+      return new AnthropicProvider(baseUrl, apiKey, model, timeoutMs, onUsage ?? noopSink);
     case AiProvider.MISTRAL:
-      return new MistralProvider(baseUrl, apiKey, model, timeoutMs, recordUsage);
+      return new MistralProvider(baseUrl, apiKey, model, timeoutMs, onUsage ?? noopSink);
     case AiProvider.LMSTUDIO:
-      return new LmStudioProvider(baseUrl, apiKey, model, timeoutMs, recordUsage);
+      return new LmStudioProvider(baseUrl, apiKey, model, timeoutMs, onUsage ?? noopSink);
   }
 }
 

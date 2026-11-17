@@ -18,6 +18,16 @@ export const USAGE_TASKS = [
   { task: "classify-reply", label: "Reading replies", hint: "Employers' mail from Gmail, read in the background" },
   { task: "draft-reply", label: "Drafting answers", hint: "Your answers to employers' replies" },
   { task: "connection-check", label: "Connection checks", hint: "Test connection in Settings" },
+  { task: "screen-posting", label: "Screening postings", hint: "Discovery's cheap look before a full assessment" },
+  { task: "assess-job", label: "Assessing jobs", hint: "The full job intelligence assessment" },
+  { task: "salary-research", label: "Salary research", hint: "Estimates from the sources you configured" },
+  { task: "resume-critique", label: "Critiquing resumes", hint: "Resume intelligence critiques" },
+  { task: "gap-questions", label: "Gap questions", hint: "Questions the profile can't answer yet" },
+  { task: "interview-prep", label: "Interview prep", hint: "Interview plans and predicted questions" },
+  { task: "mock-feedback", label: "Mock interviews", hint: "Grading mock answers" },
+  { task: "learning-plan", label: "Learning plans", hint: "Study plans from assessment gaps" },
+  { task: "company-research", label: "Company research", hint: "Research on a hiring company" },
+  { task: "doc-findings", label: "Knowledge base review", hint: "Career knowledge base documents" },
 ] as const;
 
 export type UsageTask = (typeof USAGE_TASKS)[number]["task"];
@@ -31,6 +41,14 @@ export type UsageEntry = TokenCount & {
   /** The provider's kind, e.g. "ANTHROPIC", or "JEV". */
   provider: string;
   model: string;
+  /** Tokens the provider served from its cache, when it says so (master.md §11.4). */
+  cachedTokens?: number;
+  /** How long the call took; 0 when untimed. */
+  durationMs?: number;
+  /** Whether the call succeeded; failures carry `error`. */
+  success?: boolean;
+  /** What went wrong, or a note such as "fallback:<model>" (never silently, master.md §11.2). */
+  error?: string;
 };
 
 /** Keeps each answered request's tokens; never fails the request. */

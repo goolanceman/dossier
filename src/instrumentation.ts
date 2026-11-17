@@ -36,6 +36,14 @@ export async function register() {
     const { startAgentSchedule } = await import("@/lib/agent/schedule");
     startAgentSchedule();
 
+    // The discovery pipeline's AI hooks, and its schedules (master.md §2.3).
+    const { activateDiscoveryHooks } = await import("@/app/(app)/discovery/hooks");
+    activateDiscoveryHooks();
+
+    // The daily digest, while it's on (master.md Phase 15).
+    const { startDigestSchedule } = await import("@/lib/digest/runner");
+    startDigestSchedule();
+
     // Startups' daily refresh, once it was refreshed by hand and while the screen is in use (#222).
     const { startStartupsSchedule } = await import("@/lib/startups/schedule");
     startStartupsSchedule();

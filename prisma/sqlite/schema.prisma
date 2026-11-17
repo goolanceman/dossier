@@ -85,6 +85,8 @@ model Experience {
   bullets      String            @default("")
   sort         Int               @default(0)
   skills       ExperienceSkill[]
+  /// The achievements from this role in the evidence library (master.md §1.2).
+  achievements CareerAchievement[]
   createdAt    DateTime          @default(now())
   updatedAt    DateTime          @updatedAt
 }
@@ -533,6 +535,10 @@ model Application {
   notes               Note[]
   /// What the user tells the AI for this application; "Anything I should know?" (NEW-6) becomes the first.
   facts               Fact[]
+  /// Gap questions raised while preparing this application (master.md Phase 6).
+  gapQuestions        GapQuestion[]
+  /// Interview plans for its interviews (master.md Phase 7).
+  interviewPlans      InterviewPlan[]
   /// Its background jobs, deleted with it (their inputs and results hold the posting and the documents).
   jobs                Job[]
   createdAt           DateTime          @default(now())
@@ -582,6 +588,8 @@ model Document {
   trimmed       Json?
   /// Earlier states, after each AI change and before each restore (E8-10).
   versions      DocumentVersion[]
+  /// The achievements its bullets are backed by (master.md §13).
+  evidence      DocumentEvidence[]
   updatedAt     DateTime          @updatedAt
 
   @@unique([applicationId, kind])
@@ -697,6 +705,12 @@ model Posting {
   /// The application made from it; deleting the application keeps the posting.
   applicationId String?       @unique
   application   Application?  @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+  /// Its assessment, salary research and gap questions (master.md Phases 3-6).
+  assessments    JobAssessment[]
+  salaryEstimate SalaryEstimate?
+  gapQuestions   GapQuestion[]
+  interviewPlans InterviewPlan[]
+  learningPlans  LearningPlan[]
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
@@ -1061,7 +1075,632 @@ model AiUsage {
   /// Null when the server didn't say.
   inputTokens  Int?
   outputTokens Int?
+  /// Tokens served from the provider's cache, when it reports them.
+  cachedTokens Int?
+  /// Microcent-scale estimated cost, only when both tokens and a price exist; never guessed.
+  estimatedCost Int?
+  /// How long the call took.
+  durationMs   Int      @default(0)
+  /// Whether the call succeeded; failures carry `error`.
+  success      Boolean  @default(true)
+  error        String   @default("")
   createdAt    DateTime @default(now())
 
   @@index([createdAt])
+}
+
+// ─── Career intelligence (master.md Phase 1) ─────────────────────────────────
+// How well a claim is backed (master.md §1.2). AI-generated content is never
+// VERIFIED: only the user promotes evidence.
+enum EvidenceStatus {
+  /// Checked by the user against a source.
+  VERIFIED
+  /// Typed or confirmed by the user, without a source.
+  USER_CONFIRMED
+  /// Brought in from a resume, document or import.
+  IMPORTED
+  /// The AI or the user marked it as unclear.
+  NEEDS_CLARIFICATION
+  /// Rejected; kept so it isn't suggested again.
+  REJECTED
+}
+
+/// One professional achievement in the evidence library (master.md §1.2): the
+/// fact of what the user did, with its proof status. AI bullets reference one
+/// of these; nothing may claim more than its status backs.
+model CareerAchievement {
+  id             String         @id @default(cuid())
+  title          String         @default("")
+  /// What the user did, in their own words.
+  description    String         @default("")
+  /// The fuller story: problem, action, outcome.
+  detail         String         @default("")
+  company        String         @default("")
+  position       String         @default("")
+  project        String         @default("")
+  /// stringList.
+  technologies   Json
+  /// What was wrong, what the user did, what changed, what it meant for the business.
+  problem        String         @default("")
+  action         String         @default("")
+  outcome        String         @default("")
+  businessImpact String         @default("")
+  /// Metrics as the user can back them, e.g. ["p99 latency −40% (dashboards)"]; empty when none are verified.
+  metrics        Json
+  /// e.g. "10 engineers", "2M requests/day".
+  scale          String         @default("")
+  /// How much was theirs: "led", "co-built", "contributed".
+  ownership      String         @default("")
+  /// e.g. "Greenfield", "Migration", "Scaling".
+  complexity     String         @default("")
+  /// A link or note to what backs it, e.g. a repo, a review, a dashboard.
+  evidenceUrl    String         @default("")
+  evidenceNotes  String         @default("")
+  status         EvidenceStatus @default(IMPORTED)
+  /// stringList.
+  tags           Json
+  /// stringList: the skills it shows, by name (Skill names are unique, so this is enough).
+  skills         Json
+  /// The role it belongs to, when one does.
+  experienceId   String?
+  experience     Experience?    @relation(fields: [experienceId], references: [id], onDelete: SetNull)
+  /// Other phrasings of this achievement (master.md §1.2): a JSON list of { kind, text }.
+  versions       Json
+  /// Where it came from, e.g. "resume", "import:3", "user"; "" when the user typed it.
+  origin         String         @default("")
+  sort           Int            @default(0)
+  /// The tailored documents that use it, and the answers and stories made from it.
+  documentEvidence DocumentEvidence[]
+  gapQuestions     GapQuestion[]
+  starStories      StarStory[]
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@index([status, sort])
+  @@index([experienceId])
+}
+
+/// A career direction the user is aiming at (master.md §1.1): each has its own
+/// priorities, and searches, resumes and preparation pick a target.
+model CareerTarget {
+  id          String   @id @default(cuid())
+  /// e.g. "Staff Backend Engineer".
+  title       String
+  /// What the user wants from it, in their words.
+  summary     String   @default("")
+  /// Target-role preferences (targetPrefsSchema in src/lib/career/targets.ts):
+  /// seniority, salary minimum and currency, remote countries, priorities, keywords.
+  preferences Json
+  /// The user's main direction, shown first; the others follow.
+  primary     Boolean  @default(false)
+  sort        Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+/// A document imported into the career knowledge base (master.md §1.3): a
+/// resume, a LinkedIn export, project notes… The text is read once; what the
+/// AI noticed waits for the user's confirmation.
+enum KnowledgeDocStatus {
+  NEW
+  REVIEWED
+  ARCHIVED
+}
+
+model KnowledgeDoc {
+  id           String             @id @default(cuid())
+  name         String
+  /// RESUME, LINKEDIN, PROJECT, GITHUB, NOTES, CERTIFICATE, REVIEW, OTHER.
+  kind         String             @default("OTHER")
+  /// Plain text of the document; files are read with the existing readers (unpdf, mammoth).
+  content      String             @default("")
+  /// Where it came from, when not uploaded.
+  sourceUrl    String             @default("")
+  status       KnowledgeDocStatus @default(NEW)
+  /// What the AI noticed (docFindingsSchema in src/lib/career/knowledge.ts):
+  /// missing metrics, unclear responsibilities, duplicates, conflicting dates.
+  findings     Json?
+  /// Which achievements were made from it, so imports can be traced.
+  achievementIds Json
+  /// The prompt version that wrote `findings`.
+  reviewedWith String?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  @@index([status, createdAt])
+}
+
+// ─── Job discovery profiles and the pipeline (master.md Phases 2–3) ──────────
+
+/// How often a search profile runs, as the agent schedule offers it.
+enum SearchScheduleKind {
+  HOURLY
+  EVERY_6_HOURS
+  DAILY
+  WEEKDAYS
+  CRON
+}
+
+/// A named, criteria-rich search the discovery engine runs (master.md §2.2).
+/// The deterministic filters (profileSchema in src/lib/discovery/profile.ts)
+/// read the JSON columns; the AI stages read the profile itself.
+model JobSearchProfile {
+  id             String             @id @default(cuid())
+  name           String
+  enabled        Boolean            @default(true)
+  /// The source to ask, as Find jobs does today.
+  source         PostingSource
+  /// The base search (searchQuerySchema): keywords, place, country, radius, remoteOnly, postedWithin.
+  query          Json
+  /// stringList: the titles to look for.
+  titles         Json
+  /// stringList: other titles that mean the same thing.
+  altTitles      Json
+  requiredKeywords  Json
+  excludedKeywords Json
+  requiredTech     Json
+  preferredTech    Json
+  excludedTech     Json
+  /// e.g. ["senior", "staff"]; free text the filters and prompts read.
+  seniority        Json
+  /// e.g. ["FULL_TIME", "CONTRACT"], as the sources write them.
+  employmentTypes  Json
+  /// REMOTE_ONLY, REMOTE_OR_HYBRID, ONSITE_OK.
+  remotePreference String             @default("REMOTE_OR_HYBRID")
+  /// ISO country codes where remote work is allowed (stringList).
+  remoteCountries  Json
+  salaryMin        Int?
+  salaryMax        Int?
+  currency         String             @default("")
+  companyBlacklist Json
+  companyWhitelist Json
+  industries       Json
+  /// e.g. "50-200".
+  companySize      String             @default("")
+  startupOnly      Boolean            @default(false)
+  /// e.g. "CET". Empty follows the server's.
+  timeZone         String             @default("")
+  scheduleKind     SearchScheduleKind @default(DAILY)
+  /// A cron expression, for CRON.
+  cron             String             @default("")
+  /// At most this many postings reach the AI in one run (master.md §2.2).
+  maxJobsPerRun    Int                @default(20)
+  /// When the pipeline last ran.
+  lastRunAt        DateTime?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  runs             DiscoveryRun[]
+  assessments      JobAssessment[]
+
+  @@index([enabled, lastRunAt])
+}
+
+/// How a discovery run ended, matching the Job table's statuses.
+enum RunStatus {
+  QUEUED
+  RUNNING
+  DONE
+  FAILED
+  CANCELLED
+}
+
+/// One run of one search profile (master.md §2.3, Phase 18): what came in and
+/// what each stage did with it, so runs are observable and recoverable.
+model DiscoveryRun {
+  id            String    @id @default(cuid())
+  profileId     String
+  profile       JobSearchProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  status        RunStatus @default(QUEUED)
+  /// Which stage it's at, e.g. "Screening with AI".
+  step          String?
+  /// Pipeline stats (runStatsSchema in src/lib/discovery/run.ts): fetched,
+  /// duplicates, deterministicRejected, screened, shortlisted, assessed, failed,
+  /// inputTokens, outputTokens, estimatedCost.
+  stats         Json?
+  /// Why it failed, written for the user.
+  error         String?
+  startedAt     DateTime?
+  finishedAt    DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([profileId, createdAt])
+  @@index([status])
+}
+
+/// How a job stands after the pipeline (master.md §2.4, §3.2): one row per
+/// posting, rewritten by each run, keeping the best full assessment.
+enum AssessmentDecision {
+  STRONG_MATCH
+  POTENTIAL_MATCH
+  WEAK_MATCH
+  REJECT
+  PENDING
+}
+
+model JobAssessment {
+  id          String             @id @default(cuid())
+  postingId   String
+  posting     Posting            @relation(fields: [postingId], references: [id], onDelete: Cascade)
+  profileId   String?
+  profile     JobSearchProfile?  @relation(fields: [profileId], references: [id], onDelete: SetNull)
+  /// How far it got: DETERMINISTIC, KEYWORD, SCREENED, ASSESSED.
+  stage       String             @default("DETERMINISTIC")
+  decision    AssessmentDecision @default(PENDING)
+  /// 0–100 once assessed; null before the AI stage.
+  score       Int?
+  /// HIGH, MEDIUM, LOW.
+  confidence  String             @default("")
+  /// Per-dimension scores (dimensionScoresSchema in src/lib/job-intel/assessment.ts).
+  dimensions  Json?
+  /// Requirement matches (requirementMatchesSchema): requirement, importance,
+  /// status, evidenceIds, jdQuotes, explanation, confidence.
+  requirements Json?
+  /// The job critique (critiqueSchema in src/lib/job-intel/critique.ts).
+  critique    Json?
+  /// Why it passed or failed each stage; a rejection always has a reason (stringList).
+  reasons     Json
+  /// Why the deterministic filters said no, when they did.
+  rejectedReason String          @default("")
+  /// Whether the user overrode the AI's decision (master.md §3.4), and why.
+  userOverride   String          @default("")
+  /// The prompt versions that wrote it, e.g. "assess-job@2".
+  assessedWith   String          @default("")
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  @@unique([postingId])
+  @@index([decision, score])
+  @@index([profileId])
+}
+
+// ─── Salary intelligence (master.md Phase 4) ─────────────────────────────────
+
+/// Where a salary figure came from (master.md §4). An ESTIMATED figure is
+/// never shown as a confirmed offer.
+enum SalaryStatus {
+  STATED
+  CONFIRMED
+  ESTIMATED
+  UNAVAILABLE
+}
+
+model SalaryEstimate {
+  id         String       @id @default(cuid())
+  postingId  String?
+  posting    Posting?     @relation(fields: [postingId], references: [id], onDelete: Cascade)
+  company    String       @default("")
+  title      String       @default("")
+  place      String       @default("")
+  country    String       @default("")
+  status     SalaryStatus @default(UNAVAILABLE)
+  minimum    Int?
+  median     Int?
+  maximum    Int?
+  currency   String       @default("")
+  /// ANNUAL, MONTHLY, HOURLY.
+  basis      String       @default("ANNUAL")
+  /// HIGH, MEDIUM, LOW.
+  confidence String       @default("LOW")
+  sourceCount Int         @default(0)
+  /// JSON list of { url, label, retrievedAt, figure }.
+  sources    Json
+  /// How the range was reached, in plain words.
+  methodology String      @default("")
+  /// The prompt version that researched it, e.g. "salary-research@1".
+  researchedWith String  @default("")
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  @@unique([postingId])
+  @@index([company])
+}
+
+// ─── Resume intelligence (master.md Phase 5) ─────────────────────────────────
+
+/// A critique of an uploaded or base resume (master.md §5.1): findings ranked
+/// by impact; never an "employer ATS score", only a labelled internal estimate.
+model ResumeCritique {
+  id            String   @id @default(cuid())
+  /// What was critiqued: "" for the base resume, else the file's name.
+  fileName      String   @default("")
+  /// The resume's text, kept so findings stay checkable.
+  content       String   @default("")
+  /// overallSchema: { score, atsReadiness, summary } (critiqueSchema in src/lib/resume-intel/critique.ts).
+  overall       Json
+  /// JSON list of findings: { id, category, severity, title, problem,
+  /// recommendation, expectedImpact, effort, evidenceRequired, priority, confidence }.
+  findings      Json
+  /// stringList of keyword-coverage notes.
+  keywordCoverage Json
+  /// stringList of formatting issues.
+  formattingIssues Json
+  /// The target role it was judged against, when one was chosen.
+  targetId      String?  @default("")
+  /// The prompt version that wrote it, e.g. "resume-critique@1".
+  critiquedWith String   @default("")
+  createdAt     DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+/// Which achievements a tailored document used (master.md §5.3, §13): the
+/// claim-to-evidence map, so every bullet is traceable.
+model DocumentEvidence {
+  id            String             @id @default(cuid())
+  documentId    String
+  document      Document           @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  achievementId String
+  achievement   CareerAchievement  @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+  /// The unit the achievement backs, e.g. "Experience:Ledgerly".
+  unitId        String             @default("")
+
+  @@unique([documentId, achievementId, unitId])
+  @@index([achievementId])
+}
+
+// ─── Gap questions (master.md Phase 6) ───────────────────────────────────────
+
+/// What a gap question is waiting on.
+enum GapQuestionStatus {
+  OPEN
+  ANSWERED
+  SKIPPED
+  UNKNOWN
+  SAVED_FOR_LATER
+}
+
+model GapQuestion {
+  id            String            @id @default(cuid())
+  /// The job that raised it, when one did.
+  postingId     String?
+  posting       Posting?          @relation(fields: [postingId], references: [id], onDelete: Cascade)
+  /// The application it belongs to, when asked while preparing one.
+  applicationId String?
+  application   Application?      @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  question      String
+  /// Why it's worth answering, in plain words.
+  reason        String            @default("")
+  /// The JD requirement or profile gap it came from.
+  relatedRequirement String      @default("")
+  /// TECHNICAL, ACHIEVEMENT, METRICS, LEADERSHIP, PROJECT, BUSINESS, CLARIFICATION.
+  questionType  String            @default("CLARIFICATION")
+  /// CRITICAL, HIGH, MEDIUM, LOW.
+  priority      String            @default("MEDIUM")
+  status        GapQuestionStatus @default(OPEN)
+  /// The user's answer, kept as written (master.md §6).
+  answer        String            @default("")
+  /// The achievement made from the answer once confirmed, if any.
+  achievementId String?
+  achievement   CareerAchievement? @relation(fields: [achievementId], references: [id], onDelete: SetNull)
+  /// The prompt version that generated it.
+  generatedWith String            @default("")
+  answeredAt    DateTime?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  @@index([status, priority])
+  @@index([postingId])
+  @@index([applicationId])
+}
+
+// ─── Interview intelligence (master.md Phase 7) ──────────────────────────────
+
+model InterviewPlan {
+  id          String   @id @default(cuid())
+  postingId   String?
+  posting     Posting? @relation(fields: [postingId], references: [id], onDelete: Cascade)
+  applicationId String?
+  application Application? @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  /// e.g. "Senior Backend Engineer at Example Co".
+  role        String   @default("")
+  /// JSON list of rounds: { name, focus }.
+  rounds      Json
+  /// The prompt version that generated the questions.
+  preparedWith String  @default("")
+  questions  InterviewQuestion[]
+  mockSessions MockSession[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([postingId])
+  @@index([applicationId])
+}
+
+model InterviewQuestion {
+  id          String        @id @default(cuid())
+  planId      String
+  plan        InterviewPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  /// RECRUITER, HR, BEHAVIORAL, HIRING_MANAGER, TECHNICAL, SYSTEM_DESIGN, LEADERSHIP, CULTURE.
+  category    String
+  /// BEGINNER, INTERMEDIATE, ADVANCED, SENIOR, STAFF.
+  difficulty  String        @default("INTERMEDIATE")
+  question    String
+  whyAsked    String        @default("")
+  relatedRequirement String @default("")
+  /// stringList.
+  expectedTopics  Json
+  /// stringList.
+  answerStructure Json
+  /// stringList of achievement ids the answer can draw on.
+  evidenceIds     Json
+  /// stringList.
+  followUps       Json
+  /// stringList.
+  commonMistakes  Json
+  /// stringList of reading topics; never invented URLs (master.md §12.5).
+  resources       Json
+  /// Marked once the user has prepared it.
+  prepared        Boolean @default(false)
+  createdAt   DateTime @default(now())
+
+  @@index([planId, category])
+}
+
+/// One mock interview (master.md §7.5): turns are kept in the session, feedback afterwards.
+enum MockKind {
+  TEXT
+  TECHNICAL
+  BEHAVIORAL
+  SYSTEM_DESIGN
+}
+
+enum MockStatus {
+  IN_PROGRESS
+  COMPLETED
+  ABANDONED
+}
+
+model MockSession {
+  id        String    @id @default(cuid())
+  planId    String?
+  plan      InterviewPlan? @relation(fields: [planId], references: [id], onDelete: SetNull)
+  kind      MockKind  @default(TEXT)
+  status    MockStatus @default(IN_PROGRESS)
+  /// JSON list of { question, answer, feedback } turns.
+  turns     Json
+  /// The overall feedback once completed (mockFeedbackSchema in src/lib/interview/mock.ts).
+  feedback  Json?
+  score     Int?
+  startedAt DateTime @default(now())
+  finishedAt DateTime?
+
+  @@index([status, startedAt])
+}
+
+/// A reusable STAR story (master.md §7.4), linked to the evidence it's based on.
+model StarStory {
+  id            String   @id @default(cuid())
+  title         String
+  situation     String   @default("")
+  task          String   @default("")
+  action        String   @default("")
+  result        String   @default("")
+  /// stringList.
+  technologies  Json
+  businessImpact String  @default("")
+  /// stringList of skill names it shows.
+  skills        Json
+  /// The achievement it came from, when one does.
+  achievementId String?
+  achievement   CareerAchievement? @relation(fields: [achievementId], references: [id], onDelete: SetNull)
+  /// stringList of InterviewQuestion ids it answers.
+  questionIds   Json
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([updatedAt])
+}
+
+// ─── Learning plans (master.md Phase 8) ──────────────────────────────────────
+
+/// What a learning topic is at.
+enum LearningStatus {
+  NOT_STARTED
+  LEARNING
+  PRACTICING
+  COMPLETED
+  NEEDS_REVISION
+}
+
+model LearningPlan {
+  id        String   @id @default(cuid())
+  postingId String?
+  posting   Posting? @relation(fields: [postingId], references: [id], onDelete: Cascade)
+  targetId  String?
+  /// e.g. "Ready for Senior AI Backend Engineer interviews".
+  goal      String   @default("")
+  /// The prompt version that generated it.
+  plannedWith String @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  topics    LearningTopic[]
+
+  @@index([postingId])
+}
+
+model LearningTopic {
+  id       String        @id @default(cuid())
+  planId   String
+  plan     LearningPlan  @relation(fields: [planId], references: [id], onDelete: Cascade)
+  title    String
+  /// stringList of what to learn first.
+  prerequisites Json
+  /// The order to learn it in, lower first.
+  sequence Int           @default(0)
+  /// Estimated hours.
+  effortHours Int        @default(2)
+  /// stringList of practical exercises.
+  exercises Json
+  /// stringList of mini-projects.
+  miniProjects Json
+  /// stringList of interview questions to be able to answer.
+  interviewQuestions Json
+  /// stringList of resource topics; never invented URLs.
+  resources Json
+  status   LearningStatus @default(NOT_STARTED)
+  completedAt DateTime?
+
+  @@index([planId, sequence])
+}
+
+// ─── Company research (master.md Phase 9) ────────────────────────────────────
+
+/// Research about one company, with sources for every time-sensitive fact.
+model CompanyResearch {
+  id        String   @id @default(cuid())
+  company   String
+  /// companyResearchSchema in src/lib/companies/research.ts: overview, products,
+  /// stack, culture, funding, size, locations, remotePolicy, recent developments,
+  /// blog topics, whyCompany, whyRole, checklist, questionsToAsk — each fact with its source.
+  research  Json
+  /// JSON list of { url, label, retrievedAt }.
+  sources   Json
+  /// The prompt version that wrote it.
+  researchedWith String @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([company])
+}
+
+// ─── AI orchestration: task routing, usage, budgets (master.md Phase 11) ─────
+
+/// Per-task AI configuration (master.md §11.3), one row per task key. Missing
+/// row means "follow the app's single provider" — today's behaviour.
+model AiTaskConfig {
+  /// e.g. "screen-posting", "assess-job", "salary-research".
+  id             String   @id
+  /// Overrides the provider kind; empty follows Settings.
+  provider       String   @default("")
+  /// The model to use for this task; empty follows Settings.
+  model          String   @default("")
+  /// "0.2"–"1.0" as text, "" for the task's default.
+  temperature    String   @default("")
+  maxTokens      Int?
+  timeoutSeconds Int?
+  retries        Int?
+  /// The model to fall back to; empty for none.
+  fallbackModel  String   @default("")
+  contextLimit   Int?
+  enabled        Boolean  @default(true)
+  maxConcurrency Int      @default(3)
+  updatedAt      DateTime @updatedAt
+}
+
+/// One AI call's usage (master.md §11.4): what it cost in tokens and time.
+/// Providers that don't report tokens leave the counts at null — never guessed.
+// ─── Daily digest (master.md Phase 15) ───────────────────────────────────────
+
+/// One day's digest, built by the automation; seen or sent is tracked on it.
+model DigestRun {
+  /// "2026-11-17", one per day.
+  id          String   @id
+  /// digestSchema in src/lib/digest/build.ts: counts, best matches, next actions.
+  content     Json
+  /// The digest as Markdown, for the export.
+  markdown    String   @default("")
+  sentAt      DateTime?
+  seenAt      DateTime?
+  createdAt   DateTime @default(now())
 }

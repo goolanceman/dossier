@@ -2,15 +2,22 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { DashboardFigures } from "@/lib/dashboard";
+import type { CareerIntel, DashboardFigures } from "@/lib/dashboard";
 
 import { rememberQuietDays } from "./actions";
+import { CareerIntelSection } from "./dashboard-career-intel";
 import { Dashboard } from "./dashboard";
 
 const router = vi.hoisted(() => ({ replace: vi.fn(), refresh: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => router, usePathname: () => null, useSearchParams: () => new URLSearchParams() }));
 vi.mock("./actions", () => ({ rememberDashboardPeriod: vi.fn(), rememberQuietDays: vi.fn(async () => ({ ok: true, data: null })) }));
 vi.mock("@/components/toast", () => ({ toast: vi.fn(), toastResult: (result: unknown) => result }));
+// The career intelligence section loads its own data from the database, which the component tests haven't got:
+// the section itself is still the real one, and is tested directly below.
+vi.mock("./dashboard-career-intel", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./dashboard-career-intel")>()),
+  DashboardCareerIntel: () => null,
+}));
 
 const figures: DashboardFigures = {
   total: 9,
@@ -151,5 +158,108 @@ describe("the dashboard (E9-7)", () => {
     // A new user has the calendar too.
     rerender(<Dashboard {...props} empty calendar={calendar} />);
     expect(screen.getByRole("region", { name: "Calendar" })).toBeInTheDocument();
+  });
+});
+
+describe("the career intelligence section (Phase 14)", () => {
+  const intel: CareerIntel = {
+    newJobs: 12,
+    bestMatches: [
+      { postingId: "lumen", title: "Senior Service Designer", company: "Lumen Works", score: 92, decision: "STRONG_MATCH" },
+      { postingId: "fieldnote", title: "Product Designer", company: "Fieldnote", score: 78, decision: "POTENTIAL_MATCH" },
+    ],
+    review: { jobs: 3, questions: 2 },
+    progress: { preparedQuestions: 8, totalQuestions: 20, completedTopics: 2, totalTopics: 5, mockSessions: 3, mockMeanScore: 74 },
+    salaries: [
+      { id: "s1", title: "Senior Service Designer", company: "Lumen Works", range: "€70,000 – €90,000", statusLabel: "Stated in the job ad", postingId: "lumen" },
+      { id: "s2", title: "", company: "", range: null, statusLabel: "Unavailable", postingId: null },
+    ],
+    usage: { calls: 14, failures: 1, inputTokens: 12345, outputTokens: 6789, estimatedCost: null },
+    actions: [
+      { reason: "2 gap questions wait for answers.", href: "/interview", action: "Answer" },
+      { reason: "3 jobs wait for your review.", href: "/discovery", action: "Review" },
+      { reason: "12 interview questions are left to prepare.", href: "/interview", action: "Prepare" },
+    ],
+  };
+
+  it("shows what discovery found, and links the best matches to their intelligence pages", () => {
+    render(<CareerIntelSection intel={intel} />);
+    const section = screen.getByRole("region", { name: "Career intelligence" });
+    expect(within(section).getByText("New jobs discovered")).toBeInTheDocument();
+    expect(within(section).getByText("12")).toBeInTheDocument();
+    expect(within(section).getByText("in the last 7 days")).toBeInTheDocument();
+    const matches = within(section).getAllByRole("link", { name: /Strong match|Potential match/ });
+    expect(matches.map((match) => match.getAttribute("href"))).toEqual(["/intelligence/lumen", "/intelligence/fieldnote"]);
+    expect(matches[0]).toHaveTextContent("Lumen Works, Senior Service Designer92 · Strong match");
+  });
+
+  it("counts what requires review, and links each count where it's answered", () => {
+    render(<CareerIntelSection intel={intel} />);
+    const section = screen.getByRole("region", { name: "Career intelligence" });
+    for (const link of within(section).getAllByRole("link", { name: /3 jobs wait for your review/ })) expect(link).toHaveAttribute("href", "/discovery");
+    for (const link of within(section).getAllByRole("link", { name: /2 gap questions wait for answers/ })) expect(link).toHaveAttribute("href", "/interview");
+  });
+
+  it("shows how the preparation stands, with the mock sessions' mean score", () => {
+    render(<CareerIntelSection intel={intel} />);
+    const section = screen.getByRole("region", { name: "Career intelligence" });
+    expect(within(section).getByText("Preparation progress")).toBeInTheDocument();
+    expect(within(section).getByText("8 of 20")).toBeInTheDocument();
+    expect(within(section).getByText("2 of 5")).toBeInTheDocument();
+    expect(within(section).getByText("3 · mean score 74")).toBeInTheDocument();
+  });
+
+  it("shows the salary research with where each figure came from, and only links a row that has a page", () => {
+    render(<CareerIntelSection intel={intel} />);
+    const section = screen.getByRole("region", { name: "Career intelligence" });
+    expect(within(section).getByRole("link", { name: /€70,000 – €90,000 · Stated in the job ad/ })).toHaveAttribute("href", "/intelligence/lumen");
+    const untied = within(section).getByText("Salary research").closest("div")!;
+    expect(untied.querySelector("a")).toBeNull();
+    expect(untied).toHaveTextContent("Unavailable");
+  });
+
+  it("reports AI use honestly: calls and failures, and only the tokens that were reported", () => {
+    render(<CareerIntelSection intel={intel} />);
+    const section = screen.getByRole("region", { name: "Career intelligence" });
+    expect(within(section).getByText("14 · 1 failure")).toBeInTheDocument();
+    expect(within(section).getByText("12,345 in · 6,789 out")).toBeInTheDocument();
+    expect(within(section).queryByText(/Estimated cost/)).not.toBeInTheDocument();
+  });
+
+  it("recommends what to do next, each going where it's done", () => {
+    render(<CareerIntelSection intel={intel} />);
+    const section = screen.getByRole("region", { name: "Career intelligence" });
+    expect(within(section).getByRole("link", { name: /12 interview questions are left to prepare/ })).toHaveAttribute("href", "/interview");
+    expect(within(section).getAllByRole("link", { name: / →$/ }).length).toBeGreaterThanOrEqual(3);
+  });
+
+  it("hides the blocks that have nothing to show", () => {
+    render(
+      <CareerIntelSection
+        intel={{
+          ...intel,
+          newJobs: null,
+          review: { jobs: 0, questions: 2 },
+          progress: null,
+          salaries: [],
+          usage: { calls: 0, failures: 0, inputTokens: null, outputTokens: null, estimatedCost: null },
+          actions: [],
+        }}
+      />,
+    );
+    const section = screen.getByRole("region", { name: "Career intelligence" });
+    expect(within(section).queryByText("New jobs discovered")).not.toBeInTheDocument();
+    expect(within(section).getByText("Best matches")).toBeInTheDocument();
+    expect(within(section).queryByText(/jobs wait for your review/)).not.toBeInTheDocument();
+    expect(within(section).getByText("2 gap questions wait for answers.")).toBeInTheDocument();
+    expect(within(section).queryByText("Preparation progress")).not.toBeInTheDocument();
+    expect(within(section).queryByText("Salary insights")).not.toBeInTheDocument();
+    expect(within(section).getByText("No AI activity in the last 7 days.")).toBeInTheDocument();
+    expect(within(section).queryByText("Recommended next actions")).not.toBeInTheDocument();
+  });
+
+  it("hides the whole section when there's nothing at all to show", () => {
+    render(<CareerIntelSection intel={null} />);
+    expect(screen.queryByRole("region", { name: "Career intelligence" })).not.toBeInTheDocument();
   });
 });

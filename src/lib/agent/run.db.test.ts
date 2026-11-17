@@ -372,6 +372,9 @@ describe("runAgentScan (E16-3)", () => {
   });
 
   it("holds the daily limit from its own record, whatever the task-data sweep deletes", async () => {
+    // The zone the "Next eligible" line is worded in: pinned, so the test
+    // doesn't depend on the host's own zone (CI runs on UTC, laptops don't).
+    await prisma().setting.create({ data: { key: "browserTimeZone", value: "UTC" } });
     await saveSettings({ jobRetentionHours: 1 });
     for (const hours of [0, 2, 4]) {
       // Each run's Job row, as the runner leaves it, which the sweep deletes an hour later.

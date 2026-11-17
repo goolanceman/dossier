@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { cache } from "react";
+import { z } from "zod";
 
 import { activityTimeline } from "@/lib/activity";
 import { isAiConfigured } from "@/lib/ai/config";
@@ -24,10 +25,99 @@ import { resumeContent, sectionsWithContent } from "@/lib/resume-content";
 import { sectionName } from "@/lib/resume-sections";
 import { loadThemes } from "@/lib/theme-data";
 import { userTimeZone } from "@/lib/time-zone";
+import { prisma } from "@/lib/prisma";
+import { estimateLabel } from "@/lib/salary/estimate";
+import { DocumentKind, GapQuestionStatus, LearningStatus, SalaryStatus } from "@/generated/prisma/enums";
 
 import { ApplicationView } from "./application-view";
+import { IntelligencePanel, type IntelligenceView } from "./intelligence-panel";
 import { metaLine } from "./meta";
 import { tabFrom } from "./tabs";
+
+/** The rounds JSON column read back as data, as the interview page reads its plans' (its page.tsx). */
+const roundsSchema = z.array(z.object({ name: z.string(), focus: z.string() })).catch([]);
+
+/** Everything the Intelligence panel shows, read in one go alongside the page's other loads. */
+async function loadIntelligence(id: string): Promise<IntelligenceView | null> {
+  const posting = await prisma.posting.findUnique({
+    where: { applicationId: id },
+    select: {
+      id: true,
+      company: true,
+      assessments: { select: { decision: true, score: true, stage: true } },
+      salaryEstimate: { select: { status: true, minimum: true, maximum: true, currency: true, basis: true } },
+      gapQuestions: { where: { status: GapQuestionStatus.OPEN }, select: { id: true } },
+      interviewPlans: {
+        select: {
+          id: true, role: true, rounds: true,
+          questions: { select: { prepared: true } },
+        },
+      },
+      learningPlans: { select: { id: true, goal: true, topics: { select: { status: true } } } },
+    },
+  });
+  if (!posting) return null;
+  const companyResearch = await prisma.companyResearch.findUnique({
+    where: { company: posting.company || (await loadApplication(id)).company },
+    select: { id: true },
+  });
+  const [resumeDoc, letterDoc] = await Promise.all([
+    prisma.document.findUnique({ where: { applicationId_kind: { applicationId: id, kind: DocumentKind.RESUME } }, select: { writtenWith: true } }),
+    prisma.document.findUnique({ where: { applicationId_kind: { applicationId: id, kind: DocumentKind.COVER_LETTER } }, select: { writtenWith: true } }),
+  ]);
+  return {
+    postingId: posting.id,
+    assessment: posting.assessments[0]
+      ? { decision: posting.assessments[0].decision, score: posting.assessments[0].score }
+      : null,
+    salary: posting.salaryEstimate
+      ? { label: estimateLabel(posting.salaryEstimate.status), range: salaryRange(posting.salaryEstimate) }
+      : null,
+    openGaps: posting.gapQuestions.length,
+    interviewPlans: posting.interviewPlans.map((plan) => ({
+      id: plan.id,
+      role: plan.role,
+      rounds: roundsSchema.parse(plan.rounds ?? []),
+      questions: plan.questions.length,
+      prepared: plan.questions.filter((q) => q.prepared).length,
+    })),
+    learningPlans: posting.learningPlans.map((plan) => ({
+      id: plan.id,
+      goal: plan.goal,
+      completed: plan.topics.filter((t) => t.status === LearningStatus.COMPLETED).length,
+      total: plan.topics.length,
+    })),
+    companyResearched: companyResearch !== null,
+    documents: [
+      { kind: "RESUME" as const, writtenWith: resumeDoc?.writtenWith ?? null },
+      { kind: "COVER_LETTER" as const, writtenWith: letterDoc?.writtenWith ?? null },
+    ],
+  };
+}
+
+const money = (amount: number, currency: string) => `${currency} ${amount.toLocaleString("en-GB")}`;
+
+const BASIS_LABEL: Record<string, string> = { ANNUAL: "a year", MONTHLY: "a month", HOURLY: "an hour" };
+
+/** The range in words, as the intelligence page's Salary section shows one, or null when there's no figure. */
+const salaryRange = (estimate: {
+  status: SalaryStatus;
+  minimum: number | null;
+  maximum: number | null;
+  currency: string;
+  basis: string;
+}): string | null => {
+  if (estimate.status === SalaryStatus.UNAVAILABLE) return null;
+  const { minimum, maximum, currency } = estimate;
+  if (minimum === null && maximum === null) return null;
+  const range =
+    minimum !== null && maximum !== null
+      ? minimum === maximum
+        ? money(minimum, currency)
+        : `${money(minimum, currency)} to ${money(maximum, currency)}`
+      : [minimum !== null ? `from ${money(minimum, currency)}` : "", maximum !== null ? `up to ${money(maximum, currency)}` : ""].filter(Boolean).join(" ");
+  return `${range} ${BASIS_LABEL[estimate.basis] ?? "a year"}`;
+};
 
 /**
  * Takes an interview moved or deleted in Google Calendar into the
@@ -47,7 +137,7 @@ export async function generateMetadata({ params }: PageProps<"/applications/[id]
 export default async function ApplicationPage({ params, searchParams }: PageProps<"/applications/[id]">) {
   const [{ id }, { tab }] = await Promise.all([params, searchParams]);
   await pullCalendar(id);
-  const [{ application, profile, liveProfile, sent, settings, extracted, resume, letter, email, includeReferences, sections, ownSections, letterDate }, aiReady, unitJobs, refineJobs, emailJobs, timeZone, google, emails, themes, resumeJobs, letterJobs, scoreJobs] =
+  const [{ application, profile, liveProfile, sent, settings, extracted, resume, letter, email, includeReferences, sections, ownSections, letterDate }, aiReady, unitJobs, refineJobs, emailJobs, timeZone, google, emails, themes, resumeJobs, letterJobs, scoreJobs, intelligence] =
     await Promise.all([
       loadDocuments(id),
       isAiConfigured(),
@@ -61,6 +151,7 @@ export default async function ApplicationPage({ params, searchParams }: PageProp
       findUnfinishedJobs(writeDocumentJobKey(id, "RESUME")),
       findUnfinishedJobs(writeDocumentJobKey(id, "COVER_LETTER")),
       findUnfinishedJobs(scoreResumeJobKey(id)),
+      loadIntelligence(id),
     ]);
 
   const match = readJson(matchSchema, application.match);
@@ -88,6 +179,7 @@ export default async function ApplicationPage({ params, searchParams }: PageProp
     resolveFileName(settings.fileNamePattern, { name: profile.basics.name, company: application.company, role: application.role, doc, date: new Date() });
 
   return (
+    <>
     <ApplicationView
       application={{
         id,
@@ -173,5 +265,7 @@ export default async function ApplicationPage({ params, searchParams }: PageProp
         hasSummary: Boolean(resume?.units.some((unit) => unit.id === "summary" && unit.text.trim())),
       })}
     />
+    {intelligence ? <IntelligencePanel intelligence={intelligence} /> : null}
+    </>
   );
 }

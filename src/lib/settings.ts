@@ -116,6 +116,13 @@ export const settingsSchema = z.object({
   apiKeyEnc: z.string().nullable().catch(null),
   /** How long one AI request may take, in seconds (public issue 118); null for DOSSIER_AI_TIMEOUT_SECONDS's, or the provider's own. */
   aiTimeoutSeconds: z.coerce.number().int().min(AI_TIMEOUT_LIMITS.min).max(AI_TIMEOUT_LIMITS.max).nullable().catch(null),
+  // AI spending budgets (master.md §11.4), in cents. Null means no limit for
+  // that window. They only count what providers report as cost, so with no
+  // prices configured nothing can trip them (see src/lib/ai/budget.ts).
+  aiBudgetDailyCents: z.coerce.number().int().min(0).nullable().catch(null),
+  aiBudgetMonthlyCents: z.coerce.number().int().min(0).nullable().catch(null),
+  /** Stop every AI task while a budget is exceeded. */
+  aiBudgetStop: flag(false),
   creativity: z.enum(Creativity).catch(Creativity.BALANCED),
   /** "Never invent experience" (SET-4). */
   strict: flag(true),
@@ -191,6 +198,14 @@ export const settingsSchema = z.object({
   agentAutoDraft: flag(false),
   /** The latest runs, newest first. They belong to the install: exports leave them out (INSTALL_SETTINGS). */
   agentRuns: json(z.array(agentRunSchema)).catch([]),
+  // Daily digest (master.md Phase 15). Off until it's turned on.
+  digestEnabled: flag(false),
+  /** The hour of the day it's built, in the user's time zone. */
+  digestHour: z.coerce.number().int().min(0).max(23).catch(23),
+  /** Each digest is kept as Markdown, for the export. */
+  digestIncludeMarkdown: flag(true),
+  /** Emails the digest from the connected Gmail account to its own address. */
+  digestEmailEnabled: flag(false),
   // Startups (#222): when the screen was last opened, since the daily refresh
   // only runs while it's in use, and what the last refresh found. They belong
   // to the install, not its data, so exports leave them out (INSTALL_SETTINGS).

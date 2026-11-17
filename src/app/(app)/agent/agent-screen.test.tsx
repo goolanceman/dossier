@@ -35,6 +35,7 @@ const card = (id: string, score: number, extra: Partial<AgentCandidateView> = {}
   error: null,
   applicationId: null,
   draftJobId: null,
+  postingId: null,
   ...extra,
 });
 const view: AgentView = {
@@ -136,6 +137,14 @@ describe("AgentScreen (E16-6)", () => {
     open({ scored: [card("s1", 84, { source: "ADZUNA", url: "https://www.adzuna.nl/land/ad/1" }), card("s2", 72)] });
     const scored = screen.getByRole("region", { name: "Scored postings" });
     expect(within(scored).getByRole("link", { name: "Jobs by Adzuna (opens in a new tab)" })).toHaveAttribute("href", "https://www.adzuna.nl");
+  });
+
+  it("links a candidate whose posting row was kept to its job intelligence page, and the others not (E14-5)", () => {
+    open({ drafts: [card("d1", 91, { applicationId: "app-1", postingId: "p1" })], scored: [card("s1", 84, { postingId: "p2" }), card("s2", 72)] });
+    expect(screen.getAllByRole("link", { name: "Job intelligence" }).map((link) => link.getAttribute("href"))).toEqual([
+      "/intelligence/p1",
+      "/intelligence/p2",
+    ]);
   });
 
   it("keeps postings below the minimum score behind Show", async () => {

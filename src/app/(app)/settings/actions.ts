@@ -9,8 +9,10 @@ import { action, ActionError } from "@/lib/action";
 import { lockAgentSearches } from "@/lib/agent/searches";
 import { AiError, createProvider } from "@/lib/ai";
 import { applyApiKeyChange } from "@/lib/ai/api-key";
+import { budgetExceeded } from "@/lib/ai/budget";
 import { keyStateOf, loadAiConfig, resolveAiConfig, sameServer } from "@/lib/ai/config";
 import { AI_TIMEOUT_LIMITS, type KeyState } from "@/lib/ai/provider-options";
+import { buildDigest, digestMarkdown } from "@/lib/digest/build";
 import { DOCUMENT_LANGUAGES } from "@/lib/document-language";
 import { deleteAllBackups } from "@/lib/backups";
 import { env } from "@/lib/env";
@@ -30,6 +32,8 @@ import { applySecretChange, JOB_SOURCE_KEY, TYPESAFE_KEY } from "@/lib/secrets";
 
 import { seedBuiltIns } from "../../../../prisma/seed/built-ins";
 import { DOCUMENTS_TO_WRITE, isJobRetention } from "@/lib/settings";
+import { TASK_KEYS } from "./sections";
+
 import { loadSettings, saveSettings } from "@/lib/settings-data";
 
 // Settings → AI provider (E6-3). Every field saves on its own, so a test
@@ -391,4 +395,93 @@ export const removeConnectorRedirect = action(z.object({ uri: z.string().max(200
   const redirects = (await loadSettings()).connectorRedirects.filter((entry) => entry !== uri);
   await saveSettings({ connectorRedirects: redirects });
   return { redirects };
+});
+
+// Settings → AI models & usage (master.md §11.3–11.4). A task's row follows
+// the app's AI settings for every field it leaves blank; usage and budgets
+// count only what providers report.
+
+/** The provider kinds a task can be pinned to, or "" for the app's provider. */
+const PROVIDER_CHOICES = ["", ...Object.values(AiProvider)] as const;
+
+const taskRoutingSchema = z.object({
+  task: z.enum(TASK_KEYS),
+  provider: z.enum(PROVIDER_CHOICES),
+  model: z.string().trim().max(200),
+  // Saved as typed; the handler checks it parses.
+  temperature: z.string().trim().max(10),
+  maxTokens: z.number().int().min(16).max(200_000).nullable(),
+  timeoutSeconds: z.number().int().min(1).max(3_600).nullable(),
+  retries: z.number().int().min(0).max(5).nullable(),
+  fallbackModel: z.string().trim().max(200),
+  contextLimit: z.number().int().min(100).max(10_000_000).nullable(),
+  maxConcurrency: z.number().int().min(1).max(10).nullable(),
+});
+
+/** Saves one task's routing. A blank field means "follow the app default"; the column default is 3 calls at once. */
+export const saveTaskRouting = action(taskRoutingSchema, async (input) => {
+  const temperature = input.temperature.trim();
+  if (temperature !== "") {
+    const value = Number(temperature);
+    if (!Number.isFinite(value) || value < 0 || value > 2) throw new ActionError("Temperature must be a number from 0 to 2.");
+  }
+  const values = {
+    provider: input.provider,
+    model: input.model.trim(),
+    temperature,
+    maxTokens: input.maxTokens,
+    timeoutSeconds: input.timeoutSeconds,
+    retries: input.retries,
+    fallbackModel: input.fallbackModel.trim(),
+    contextLimit: input.contextLimit,
+    maxConcurrency: input.maxConcurrency ?? 3,
+  };
+  await prisma.aiTaskConfig.upsert({ where: { id: input.task }, create: { id: input.task, ...values }, update: values });
+  return null;
+});
+
+/** Runs a task, or switches it off. A task that was never saved gets a row with just the switch. */
+export const setTaskEnabled = action(z.object({ task: z.enum(TASK_KEYS), enabled: z.boolean() }), async ({ task, enabled }) => {
+  await prisma.aiTaskConfig.upsert({ where: { id: task }, create: { id: task, enabled }, update: { enabled } });
+  return null;
+});
+
+/** Saves the budgets in cents, and answers with the spend they can now see. */
+export const saveBudgets = action(
+  z.object({
+    dailyCents: z.number().int().min(0).max(100_000_000).nullable(),
+    monthlyCents: z.number().int().min(0).max(1_000_000_000).nullable(),
+    stop: z.boolean(),
+  }),
+  async ({ dailyCents, monthlyCents, stop }) => {
+    await saveSettings({ aiBudgetDailyCents: dailyCents, aiBudgetMonthlyCents: monthlyCents, aiBudgetStop: stop });
+    return { status: await budgetExceeded() };
+  },
+);
+
+// Settings → Automation (master.md Phase 15): the daily digest.
+
+/** Saves the digest's settings, each as it changes. */
+export const saveDigestSettings = action(
+  z.object({
+    enabled: z.boolean().optional(),
+    hour: z.number().int().min(0).max(23).optional(),
+    includeMarkdown: z.boolean().optional(),
+    emailEnabled: z.boolean().optional(),
+  }),
+  async (changes) => {
+    await saveSettings({
+      digestEnabled: changes.enabled,
+      digestHour: changes.hour,
+      digestIncludeMarkdown: changes.includeMarkdown,
+      digestEmailEnabled: changes.emailEnabled,
+    });
+    return null;
+  },
+);
+
+/** "Preview today's digest": builds it from the last 24 hours, without keeping or sending it. */
+export const previewDigest = action(z.object({}), async () => {
+  const digest = await buildDigest();
+  return { markdown: digestMarkdown(digest) };
 });

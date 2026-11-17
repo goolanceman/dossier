@@ -99,6 +99,12 @@ export class AnthropicProvider extends BaseProvider {
     if (message.stop_reason === "refusal") {
       throw new AiError("provider", "The model declined to answer this one. Try rewording it, or try again.", "refusal");
     }
+    // Token counts for the usage log (master.md §11.4); cache reads come on top of input_tokens.
+    call.onUsage?.({
+      inputTokens: message.usage?.input_tokens,
+      outputTokens: message.usage?.output_tokens,
+      cachedTokens: message.usage?.cache_read_input_tokens ?? undefined,
+    });
     return {
       text: message.content.flatMap((block) => (block.type === "text" ? [block.text] : [])).join(""),
       cutOff: message.stop_reason === "max_tokens" || message.stop_reason === "model_context_window_exceeded",
