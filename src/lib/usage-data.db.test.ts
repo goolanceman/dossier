@@ -24,8 +24,8 @@ afterAll(async () => {
 
 describe("recordUsage (#290)", () => {
   it("keeps the task, provider, model and counts, null where the server didn't say", async () => {
-    await recordUsage({ task: "extract-posting", provider: "ANTHROPIC", model: "claude-sonnet-5", cachedTokens: null, durationMs: 0, success: true, error: "", input: 1_200, output: 300 });
-    await recordUsage({ task: "score-posting-jev", provider: "JEV", model: "jev-1.14.0", cachedTokens: null, durationMs: 0, success: true, error: "", input: 4_000, output: null });
+    await recordUsage({ task: "extract-posting", provider: "ANTHROPIC", model: "claude-sonnet-5", cachedTokens: undefined, durationMs: 0, success: true, error: "", input: 1_200, output: 300 });
+    await recordUsage({ task: "score-posting-jev", provider: "JEV", model: "jev-1.14.0", cachedTokens: undefined, durationMs: 0, success: true, error: "", input: 4_000, output: null });
     expect(await prisma().aiUsage.findMany({ orderBy: { createdAt: "asc" }, omit: { id: true, createdAt: true } })).toEqual([
       { task: "extract-posting", provider: "ANTHROPIC", model: "claude-sonnet-5", cachedTokens: null, durationMs: 0, success: true, error: "", estimatedCost: null, inputTokens: 1_200, outputTokens: 300 },
       { task: "score-posting-jev", provider: "JEV", model: "jev-1.14.0", cachedTokens: null, durationMs: 0, success: true, error: "", estimatedCost: null, inputTokens: 4_000, outputTokens: null },
