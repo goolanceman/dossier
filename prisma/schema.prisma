@@ -571,8 +571,9 @@ enum DocumentKind {
 /// A tailored resume, cover letter or application email, split into editable units (unitsSchema).
 model Document {
   id            String            @id @default(cuid())
-  applicationId String
-  application   Application       @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  /// Null for the master resume (master.md §5.5): a document not tied to an application.
+  applicationId String?
+  application   Application?      @relation(fields: [applicationId], references: [id], onDelete: Cascade)
   kind          DocumentKind
   units         Json
   /// The theme it was created with; null falls back to the base theme.
@@ -586,6 +587,8 @@ model Document {
   versions      DocumentVersion[]
   /// The achievements its bullets are backed by (master.md §13).
   evidence      DocumentEvidence[]
+  /// The critiques whose findings were applied into this document.
+  appliedCritiques ResumeCritique[]
   updatedAt     DateTime          @updatedAt
 
   @@unique([applicationId, kind])
@@ -1170,6 +1173,7 @@ model CareerTarget {
   /// The user's main direction, shown first; the others follow.
   primary     Boolean  @default(false)
   sort        Int      @default(0)
+  plans       CareerPlan[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
@@ -1415,6 +1419,9 @@ model ResumeCritique {
   targetId      String?  @default("")
   /// The prompt version that wrote it, e.g. "resume-critique@1".
   critiquedWith String   @default("")
+  /// The master document the findings were applied to, once they were.
+  appliedDocumentId String?
+  appliedDocument   Document? @relation(fields: [appliedDocumentId], references: [id], onDelete: SetNull)
   createdAt     DateTime @default(now())
 
   @@index([createdAt])
@@ -1562,6 +1569,29 @@ model MockSession {
   finishedAt DateTime?
 
   @@index([status, startedAt])
+}
+
+/// A career goals plan the AI drew from the resume, the profile or an
+/// assessment (master.md: "on the basis of resume ai can generate the career
+/// goals plan"). Items are validated by careerPlanSchema in task-contracts.
+model CareerPlan {
+  id        String       @id @default(cuid())
+  targetId  String?
+  target    CareerTarget? @relation(fields: [targetId], references: [id], onDelete: SetNull)
+  /// RESUME, PROFILE or ASSESSMENT: what it was drawn from.
+  basedOn   String       @default("PROFILE")
+  headline  String       @default("")
+  summary   String       @default("")
+  /// The goals with actions and milestones (careerPlanSchema).
+  items     Json
+  /// The critique it came from, when one did.
+  critiqueId String?
+  /// The prompt version that wrote it.
+  planWith  String       @default("")
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@index([updatedAt])
 }
 
 /// A reusable STAR story (master.md §7.4), linked to the evidence it's based on.

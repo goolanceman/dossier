@@ -28,6 +28,8 @@ export const USAGE_TASKS = [
   { task: "learning-plan", label: "Learning plans", hint: "Study plans from assessment gaps" },
   { task: "company-research", label: "Company research", hint: "Research on a hiring company" },
   { task: "doc-findings", label: "Knowledge base review", hint: "Career knowledge base documents" },
+  { task: "apply-findings", label: "Applying resume fixes", hint: "Critique findings applied to a resume" },
+  { task: "career-plan", label: "Career plans", hint: "Goals and plans drawn from your resume" },
 ] as const;
 
 export type UsageTask = (typeof USAGE_TASKS)[number]["task"];

@@ -301,3 +301,59 @@ export const docFindingsSchema = z.object({
     .max(20),
 });
 export type DocFindings = z.output<typeof docFindingsSchema>;
+
+// ── Applying critique findings to a resume (master.md §5: apply, not just suggest) ──
+
+export const appliedChangeSchema = z.object({
+  findingId: z.string().max(60),
+  /** The unit the change went into, e.g. "Experience:Ledgerly" or "summary". */
+  unitId: z.string().max(120),
+  /** One line on what changed. */
+  summary: z.string().max(500),
+});
+
+export const applyFindingsSchema = z.object({
+  ...schemaMeta,
+  task: z.literal("apply_findings"),
+  /** The FULL unit list after the changes (same shape as the document's units). */
+  units: z.array(z.object({ id: z.string().max(120), label: z.string().max(200), text: z.string().max(4_000) })).max(60),
+  changes: z.array(appliedChangeSchema).max(30),
+  /** Findings that could not be applied without inventing facts, with why (master.md §13). */
+  unapplied: z.array(z.object({ findingId: z.string().max(60), reason: z.string().max(500) })).max(20),
+});
+export type ApplyFindings = z.output<typeof applyFindingsSchema>;
+
+// ── Career goals plan drawn from the resume (master.md Phase 5 extension) ────
+
+export const careerPlanSchema = z.object({
+  ...schemaMeta,
+  task: z.literal("career_plan"),
+  headline: z.string().max(300),
+  summary: z.string().max(2_000),
+  goals: z
+    .array(
+      z.object({
+        id: z.string().max(60),
+        title: z.string().max(300),
+        /** NOW, NEXT or LATER: the horizon. */
+        horizon: z.enum(["NOW", "NEXT", "LATER"]),
+        why: z.string().max(1_000),
+        actions: z
+          .array(
+            z.object({
+              id: z.string().max(60),
+              action: z.string().max(500),
+              /** LIGHT, MEDIUM or HEAVY. */
+              effort: z.enum(["LIGHT", "MEDIUM", "HEAVY"]),
+              /** Achievement ids this action builds on; checked before saving. */
+              evidenceIds: z.array(evidenceRefSchema).max(20),
+            }),
+          )
+          .max(10),
+        milestones: z.array(z.string().max(300)).max(8),
+      }),
+    )
+    .max(12),
+  risks: z.array(z.string().max(500)).max(8),
+});
+export type CareerPlanResult = z.output<typeof careerPlanSchema>;

@@ -22,6 +22,8 @@ export async function rewriteSectionOnDrafts(section: CustomSection): Promise<vo
   });
 
   for (const row of rows) {
+    // Master documents (no application) aren't touched by an application's section drafts.
+    if (row.applicationId === null) continue;
     const held = unitsSchema.safeParse(row.units);
     if (held.success && held.data.some((unit) => ids.has(unit.id))) {
       await updateDocuments(row.applicationId, async (documents) => {
