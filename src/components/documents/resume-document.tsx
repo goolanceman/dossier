@@ -52,6 +52,17 @@ export function ResumeDocument({ theme, profile, paper, layout, language, render
   const photo = (size: "header" | "sidebar", className?: string) =>
     content.photo && <ResumePhoto key="photo" src={content.photo} name={content.name} shape={shape} size={size} className={className} />;
 
+  const skillsSection = content.skills && (
+    <DocumentSection key="skills" title={labels.skills}>
+      {renderUnit({ id: "skills", children: <SkillLines text={content.skills} /> })}
+    </DocumentSection>
+  );
+  const languagesSection = content.languages && (
+    <DocumentSection key="languages" title={labels.languages}>
+      {renderUnit({ id: "languages", children: <p>{content.languages}</p> })}
+    </DocumentSection>
+  );
+
   const sidebar = [
     position === PhotoPosition.SIDEBAR && photo("sidebar"),
     resolved.split && content.contacts.length > 0 && (
@@ -65,16 +76,10 @@ export function ResumeDocument({ theme, profile, paper, layout, language, render
         </ul>
       </DocumentSection>
     ),
-    content.skills && (
-      <DocumentSection key="skills" title={labels.skills}>
-        {renderUnit({ id: "skills", children: <SkillLines text={content.skills} /> })}
-      </DocumentSection>
-    ),
-    content.languages && (
-      <DocumentSection key="languages" title={labels.languages}>
-        {renderUnit({ id: "languages", children: <p>{content.languages}</p> })}
-      </DocumentSection>
-    ),
+    // In a sidebar layout, skills and languages sit in the sidebar, beside the
+    // main content; otherwise they follow the summary in the main column (PRO-??).
+    resolved.split && skillsSection,
+    resolved.split && languagesSection,
   ].filter(Boolean);
 
   const main = [
@@ -83,6 +88,8 @@ export function ResumeDocument({ theme, profile, paper, layout, language, render
         {renderUnit({ id: "summary", children: <p className={styles.summary}>{content.summary}</p> })}
       </DocumentSection>
     ),
+    !resolved.split && skillsSection,
+    !resolved.split && languagesSection,
     content.experience.length > 0 && (
       <DocumentSection key="experience" title={labels.experience}>
         {content.experience.map((role) => (

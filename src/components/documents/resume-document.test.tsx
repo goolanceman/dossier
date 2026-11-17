@@ -25,7 +25,7 @@ describe("ResumeDocument", () => {
     expect(screen.getByText("jane.doe@example.com").parentElement?.textContent).toBe(
       "jane.doe@example.com  ·  +31 6 1234 5678  ·  Rotterdam, Netherlands  ·  example.com  ·  linkedin.com/in/janedoe-example",
     );
-    expect(sectionTitles()).toEqual(["Profile", "Experience", "Projects", "Education", "Publications", "Skills", "Languages"]);
+    expect(sectionTitles()).toEqual(["Profile", "Skills", "Languages", "Experience", "Projects", "Education", "Publications"]);
   });
 
   it("lists contact details first in the sidebar of sidebar layouts", () => {
@@ -37,7 +37,7 @@ describe("ResumeDocument", () => {
 
   it("renders a sidebar theme in a single column when asked", () => {
     render(<ResumeDocument theme={theme("modern")} profile={profile} paper="A4" layout="SINGLE" today={today} />);
-    expect(sectionTitles()).toEqual(["Profile", "Experience", "Projects", "Education", "Publications", "Skills", "Languages"]);
+    expect(sectionTitles()).toEqual(["Profile", "Skills", "Languages", "Experience", "Projects", "Education", "Publications"]);
   });
 
   it("reads a sidebar at the end of the line after the main column, on its tinted panel", () => {
@@ -71,7 +71,7 @@ describe("ResumeDocument", () => {
 
   it("keeps side headings in a single column", () => {
     render(<ResumeDocument theme={theme("folio")} profile={profile} paper="A4" today={today} />);
-    expect(sectionTitles()).toEqual(["Profile", "Experience", "Projects", "Education", "Publications", "Skills", "Languages"]);
+    expect(sectionTitles()).toEqual(["Profile", "Skills", "Languages", "Experience", "Projects", "Education", "Publications"]);
     expect(screen.getByRole("article", { name: "Resume" }).className).toMatch(/sideHeadings/);
   });
 
@@ -96,7 +96,7 @@ describe("ResumeDocument", () => {
 
   it("keeps English headings for a language without its own", () => {
     render(<ResumeDocument theme={theme("editorial")} profile={profile} paper="A4" today={today} language="Hebrew" />);
-    expect(sectionTitles()).toEqual(["Profile", "Experience", "Projects", "Education", "Publications", "Skills", "Languages"]);
+    expect(sectionTitles()).toEqual(["Profile", "Skills", "Languages", "Experience", "Projects", "Education", "Publications"]);
     expect(screen.getByText("Mar 2021 – Present")).toBeInTheDocument();
   });
 
@@ -161,10 +161,11 @@ describe("ResumeDocument", () => {
         )}
       />,
     );
-    // Every unit, in reading order: the main column, then skills and languages.
+    // Every unit, in reading order: the summary, then skills and languages, then the rest of the main column.
     const ids = demoResumeUnits().map((unit) => unit.id);
+    const rest = ids.filter((id) => id !== "summary" && id !== "skills" && id !== "languages");
     const drawn = [...container.querySelectorAll("[data-testid]")].map((element) => element.getAttribute("data-testid"));
-    expect(drawn).toEqual([...ids.filter((id) => id !== "skills" && id !== "languages"), "skills", "languages"]);
+    expect(drawn).toEqual(["summary", "skills", "languages", ...rest]);
     // A role's title line comes apart from its text, so it can stay while the text is edited.
     expect(screen.getByTestId("experience:e3")).toHaveTextContent(/^UX Designer, Studio Brik/);
   });

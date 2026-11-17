@@ -84,6 +84,40 @@ exports[`ResumeDocument > renders the demo profile in Atlas 1`] = `
         <h2
           class="_sectionTitle_fa1ef7"
         >
+          Skills
+        </h2>
+        <div
+          data-unit="skills"
+        >
+          <p
+            class="_skillLine_fa1ef7"
+          >
+            Interaction design · Design systems · Prototyping · User research · Figma · HTML & CSS · Workshop facilitation
+          </p>
+        </div>
+      </section>
+      <section
+        class="_section_fa1ef7"
+      >
+        <h2
+          class="_sectionTitle_fa1ef7"
+        >
+          Languages
+        </h2>
+        <div
+          data-unit="languages"
+        >
+          <p>
+            Dutch: Native · English: Fluent (C2) · German: Intermediate (B1)
+          </p>
+        </div>
+      </section>
+      <section
+        class="_section_fa1ef7"
+      >
+        <h2
+          class="_sectionTitle_fa1ef7"
+        >
           Experience
         </h2>
         <div
@@ -376,44 +410,6 @@ exports[`ResumeDocument > renders the demo profile in Atlas 1`] = `
                 doi.org/10.5555/12345678
               </bdi>
             </a>
-          </p>
-        </div>
-      </section>
-    </div>
-    <div
-      class="_column_fa1ef7"
-    >
-      <section
-        class="_section_fa1ef7"
-      >
-        <h2
-          class="_sectionTitle_fa1ef7"
-        >
-          Skills
-        </h2>
-        <div
-          data-unit="skills"
-        >
-          <p
-            class="_skillLine_fa1ef7"
-          >
-            Interaction design · Design systems · Prototyping · User research · Figma · HTML & CSS · Workshop facilitation
-          </p>
-        </div>
-      </section>
-      <section
-        class="_section_fa1ef7"
-      >
-        <h2
-          class="_sectionTitle_fa1ef7"
-        >
-          Languages
-        </h2>
-        <div
-          data-unit="languages"
-        >
-          <p>
-            Dutch: Native · English: Fluent (C2) · German: Intermediate (B1)
           </p>
         </div>
       </section>
@@ -506,6 +502,40 @@ exports[`ResumeDocument > renders the demo profile in Chronicle 1`] = `
         <h2
           class="_sectionTitle_fa1ef7"
         >
+          Skills
+        </h2>
+        <div
+          data-unit="skills"
+        >
+          <p
+            class="_skillLine_fa1ef7"
+          >
+            Interaction design · Design systems · Prototyping · User research · Figma · HTML & CSS · Workshop facilitation
+          </p>
+        </div>
+      </section>
+      <section
+        class="_section_fa1ef7"
+      >
+        <h2
+          class="_sectionTitle_fa1ef7"
+        >
+          Languages
+        </h2>
+        <div
+          data-unit="languages"
+        >
+          <p>
+            Dutch: Native · English: Fluent (C2) · German: Intermediate (B1)
+          </p>
+        </div>
+      </section>
+      <section
+        class="_section_fa1ef7"
+      >
+        <h2
+          class="_sectionTitle_fa1ef7"
+        >
           Experience
         </h2>
         <div
@@ -802,44 +832,6 @@ exports[`ResumeDocument > renders the demo profile in Chronicle 1`] = `
         </div>
       </section>
     </div>
-    <div
-      class="_column_fa1ef7"
-    >
-      <section
-        class="_section_fa1ef7"
-      >
-        <h2
-          class="_sectionTitle_fa1ef7"
-        >
-          Skills
-        </h2>
-        <div
-          data-unit="skills"
-        >
-          <p
-            class="_skillLine_fa1ef7"
-          >
-            Interaction design · Design systems · Prototyping · User research · Figma · HTML & CSS · Workshop facilitation
-          </p>
-        </div>
-      </section>
-      <section
-        class="_section_fa1ef7"
-      >
-        <h2
-          class="_sectionTitle_fa1ef7"
-        >
-          Languages
-        </h2>
-        <div
-          data-unit="languages"
-        >
-          <p>
-            Dutch: Native · English: Fluent (C2) · German: Intermediate (B1)
-          </p>
-        </div>
-      </section>
-    </div>
   </div>
 </article>
 `;
@@ -919,6 +911,40 @@ exports[`ResumeDocument > renders the demo profile in Classic 1`] = `
             class="_summary_fa1ef7"
           >
             Product designer with nine years of experience turning complicated operational tools into calm, usable software. I like working close to engineering and closer to the people who use what we build.
+          </p>
+        </div>
+      </section>
+      <section
+        class="_section_fa1ef7"
+      >
+        <h2
+          class="_sectionTitle_fa1ef7"
+        >
+          Skills
+        </h2>
+        <div
+          data-unit="skills"
+        >
+          <p
+            class="_skillLine_fa1ef7"
+          >
+            Interaction design · Design systems · Prototyping · User research · Figma · HTML & CSS · Workshop facilitation
+          </p>
+        </div>
+      </section>
+      <section
+        class="_section_fa1ef7"
+      >
+        <h2
+          class="_sectionTitle_fa1ef7"
+        >
+          Languages
+        </h2>
+        <div
+          data-unit="languages"
+        >
+          <p>
+            Dutch: Native · English: Fluent (C2) · German: Intermediate (B1)
           </p>
         </div>
       </section>
@@ -1220,44 +1246,6 @@ exports[`ResumeDocument > renders the demo profile in Classic 1`] = `
                 doi.org/10.5555/12345678
               </bdi>
             </a>
-          </p>
-        </div>
-      </section>
-    </div>
-    <div
-      class="_column_fa1ef7"
-    >
-      <section
-        class="_section_fa1ef7"
-      >
-        <h2
-          class="_sectionTitle_fa1ef7"
-        >
-          Skills
-        </h2>
-        <div
-          data-unit="skills"
-        >
-          <p
-            class="_skillLine_fa1ef7"
-          >
-            Interaction design · Design systems · Prototyping · User research · Figma · HTML & CSS · Workshop facilitation
-          </p>
-        </div>
-      </section>
-      <section
-        class="_section_fa1ef7"
-      >
-        <h2
-          class="_sectionTitle_fa1ef7"
-        >
-          Languages
-        </h2>
-        <div
-          data-unit="languages"
-        >
-          <p>
-            Dutch: Native · English: Fluent (C2) · German: Intermediate (B1)
           </p>
         </div>
       </section>
@@ -1787,6 +1775,40 @@ exports[`ResumeDocument > renders the demo profile in Editorial 1`] = `
         <h2
           class="_sectionTitle_fa1ef7"
         >
+          Skills
+        </h2>
+        <div
+          data-unit="skills"
+        >
+          <p
+            class="_skillLine_fa1ef7"
+          >
+            Interaction design · Design systems · Prototyping · User research · Figma · HTML & CSS · Workshop facilitation
+          </p>
+        </div>
+      </section>
+      <section
+        class="_section_fa1ef7"
+      >
+        <h2
+          class="_sectionTitle_fa1ef7"
+        >
+          Languages
+        </h2>
+        <div
+          data-unit="languages"
+        >
+          <p>
+            Dutch: Native · English: Fluent (C2) · German: Intermediate (B1)
+          </p>
+        </div>
+      </section>
+      <section
+        class="_section_fa1ef7"
+      >
+        <h2
+          class="_sectionTitle_fa1ef7"
+        >
           Experience
         </h2>
         <div
@@ -2079,44 +2101,6 @@ exports[`ResumeDocument > renders the demo profile in Editorial 1`] = `
                 doi.org/10.5555/12345678
               </bdi>
             </a>
-          </p>
-        </div>
-      </section>
-    </div>
-    <div
-      class="_column_fa1ef7"
-    >
-      <section
-        class="_section_fa1ef7"
-      >
-        <h2
-          class="_sectionTitle_fa1ef7"
-        >
-          Skills
-        </h2>
-        <div
-          data-unit="skills"
-        >
-          <p
-            class="_skillLine_fa1ef7"
-          >
-            Interaction design · Design systems · Prototyping · User research · Figma · HTML & CSS · Workshop facilitation
-          </p>
-        </div>
-      </section>
-      <section
-        class="_section_fa1ef7"
-      >
-        <h2
-          class="_sectionTitle_fa1ef7"
-        >
-          Languages
-        </h2>
-        <div
-          data-unit="languages"
-        >
-          <p>
-            Dutch: Native · English: Fluent (C2) · German: Intermediate (B1)
           </p>
         </div>
       </section>
@@ -2209,6 +2193,40 @@ exports[`ResumeDocument > renders the demo profile in Folio 1`] = `
         <h2
           class="_sectionTitle_fa1ef7"
         >
+          Skills
+        </h2>
+        <div
+          data-unit="skills"
+        >
+          <p
+            class="_skillLine_fa1ef7"
+          >
+            Interaction design · Design systems · Prototyping · User research · Figma · HTML & CSS · Workshop facilitation
+          </p>
+        </div>
+      </section>
+      <section
+        class="_section_fa1ef7"
+      >
+        <h2
+          class="_sectionTitle_fa1ef7"
+        >
+          Languages
+        </h2>
+        <div
+          data-unit="languages"
+        >
+          <p>
+            Dutch: Native · English: Fluent (C2) · German: Intermediate (B1)
+          </p>
+        </div>
+      </section>
+      <section
+        class="_section_fa1ef7"
+      >
+        <h2
+          class="_sectionTitle_fa1ef7"
+        >
           Experience
         </h2>
         <div
@@ -2501,44 +2519,6 @@ exports[`ResumeDocument > renders the demo profile in Folio 1`] = `
                 doi.org/10.5555/12345678
               </bdi>
             </a>
-          </p>
-        </div>
-      </section>
-    </div>
-    <div
-      class="_column_fa1ef7"
-    >
-      <section
-        class="_section_fa1ef7"
-      >
-        <h2
-          class="_sectionTitle_fa1ef7"
-        >
-          Skills
-        </h2>
-        <div
-          data-unit="skills"
-        >
-          <p
-            class="_skillLine_fa1ef7"
-          >
-            Interaction design · Design systems · Prototyping · User research · Figma · HTML & CSS · Workshop facilitation
-          </p>
-        </div>
-      </section>
-      <section
-        class="_section_fa1ef7"
-      >
-        <h2
-          class="_sectionTitle_fa1ef7"
-        >
-          Languages
-        </h2>
-        <div
-          data-unit="languages"
-        >
-          <p>
-            Dutch: Native · English: Fluent (C2) · German: Intermediate (B1)
           </p>
         </div>
       </section>
@@ -3068,6 +3048,40 @@ exports[`ResumeDocument > renders the demo profile in Minimal 1`] = `
         <h2
           class="_sectionTitle_fa1ef7"
         >
+          Skills
+        </h2>
+        <div
+          data-unit="skills"
+        >
+          <p
+            class="_skillLine_fa1ef7"
+          >
+            Interaction design · Design systems · Prototyping · User research · Figma · HTML & CSS · Workshop facilitation
+          </p>
+        </div>
+      </section>
+      <section
+        class="_section_fa1ef7"
+      >
+        <h2
+          class="_sectionTitle_fa1ef7"
+        >
+          Languages
+        </h2>
+        <div
+          data-unit="languages"
+        >
+          <p>
+            Dutch: Native · English: Fluent (C2) · German: Intermediate (B1)
+          </p>
+        </div>
+      </section>
+      <section
+        class="_section_fa1ef7"
+      >
+        <h2
+          class="_sectionTitle_fa1ef7"
+        >
           Experience
         </h2>
         <div
@@ -3360,44 +3374,6 @@ exports[`ResumeDocument > renders the demo profile in Minimal 1`] = `
                 doi.org/10.5555/12345678
               </bdi>
             </a>
-          </p>
-        </div>
-      </section>
-    </div>
-    <div
-      class="_column_fa1ef7"
-    >
-      <section
-        class="_section_fa1ef7"
-      >
-        <h2
-          class="_sectionTitle_fa1ef7"
-        >
-          Skills
-        </h2>
-        <div
-          data-unit="skills"
-        >
-          <p
-            class="_skillLine_fa1ef7"
-          >
-            Interaction design · Design systems · Prototyping · User research · Figma · HTML & CSS · Workshop facilitation
-          </p>
-        </div>
-      </section>
-      <section
-        class="_section_fa1ef7"
-      >
-        <h2
-          class="_sectionTitle_fa1ef7"
-        >
-          Languages
-        </h2>
-        <div
-          data-unit="languages"
-        >
-          <p>
-            Dutch: Native · English: Fluent (C2) · German: Intermediate (B1)
           </p>
         </div>
       </section>
@@ -3927,6 +3903,40 @@ exports[`ResumeDocument > renders the demo profile in Signal 1`] = `
         <h2
           class="_sectionTitle_fa1ef7"
         >
+          Skills
+        </h2>
+        <div
+          data-unit="skills"
+        >
+          <p
+            class="_skillLine_fa1ef7"
+          >
+            Interaction design · Design systems · Prototyping · User research · Figma · HTML & CSS · Workshop facilitation
+          </p>
+        </div>
+      </section>
+      <section
+        class="_section_fa1ef7"
+      >
+        <h2
+          class="_sectionTitle_fa1ef7"
+        >
+          Languages
+        </h2>
+        <div
+          data-unit="languages"
+        >
+          <p>
+            Dutch: Native · English: Fluent (C2) · German: Intermediate (B1)
+          </p>
+        </div>
+      </section>
+      <section
+        class="_section_fa1ef7"
+      >
+        <h2
+          class="_sectionTitle_fa1ef7"
+        >
           Experience
         </h2>
         <div
@@ -4219,44 +4229,6 @@ exports[`ResumeDocument > renders the demo profile in Signal 1`] = `
                 doi.org/10.5555/12345678
               </bdi>
             </a>
-          </p>
-        </div>
-      </section>
-    </div>
-    <div
-      class="_column_fa1ef7"
-    >
-      <section
-        class="_section_fa1ef7"
-      >
-        <h2
-          class="_sectionTitle_fa1ef7"
-        >
-          Skills
-        </h2>
-        <div
-          data-unit="skills"
-        >
-          <p
-            class="_skillLine_fa1ef7"
-          >
-            Interaction design · Design systems · Prototyping · User research · Figma · HTML & CSS · Workshop facilitation
-          </p>
-        </div>
-      </section>
-      <section
-        class="_section_fa1ef7"
-      >
-        <h2
-          class="_sectionTitle_fa1ef7"
-        >
-          Languages
-        </h2>
-        <div
-          data-unit="languages"
-        >
-          <p>
-            Dutch: Native · English: Fluent (C2) · German: Intermediate (B1)
           </p>
         </div>
       </section>
