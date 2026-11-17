@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 
+import { AiProvider } from "@/generated/prisma/enums";
+import { budgetExceeded } from "@/lib/ai/budget";
 import { loadAiConfig, loadAiSettingsView } from "@/lib/ai/config";
+import { usageSummary } from "@/lib/ai/usage";
 import { jobSearchView, loadJobSearchConfig } from "@/lib/job-search/config";
 import { COUNTRIES } from "@/lib/job-search/countries";
 import { loadSearch } from "@/lib/posting-searches";
@@ -27,6 +30,8 @@ import { USAGE_PING_HOST, usagePingChoice } from "@/lib/usage-ping";
 import { AgentSection } from "./agent-section";
 import { AiBehaviour } from "./ai-behaviour";
 import { AiProviderSection } from "./ai-provider-section";
+import { AiRoutingSection, type TaskRoutingRow, type UsageView } from "./ai-routing-section";
+import { DigestSection } from "./digest-section";
 import { DataSection } from "./data-section";
 import { DocumentsSection } from "./documents-section";
 import { GoogleSection } from "./google-section";
@@ -35,7 +40,7 @@ import { JobSearchSection } from "./job-search-section";
 import { ScoringSection } from "./scoring-section";
 import { AboutSection, type AboutFacts, type UsagePingView } from "./about-section";
 import { ConnectorSection } from "./connector-section";
-import { settingsSectionFromParam } from "./sections";
+import { ROUTING_TASKS, settingsSectionFromParam } from "./sections";
 import { SettingsScreen } from "./settings-screen";
 
 export const metadata: Metadata = { title: "Settings" };
@@ -53,6 +58,17 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
           <AiProviderSection initial={await loadAiSettingsView()} />
           <AiBehaviour initial={{ creativity: settings.creativity, strict: settings.strict, showDiff: settings.showDiff }} />
         </>
+      ) : section === "ai-routing" ? (
+        <AiRoutingSection
+          {...await aiRoutingView()}
+          usage={await usageView()}
+          budgets={{
+            dailyCents: settings.aiBudgetDailyCents,
+            monthlyCents: settings.aiBudgetMonthlyCents,
+            stop: settings.aiBudgetStop,
+            status: await budgetExceeded(),
+          }}
+        />
       ) : section === "jobs" ? (
         <JobSearchSection initial={jobSearchView(await loadJobSearchConfig())} />
       ) : section === "scoring" ? (
@@ -72,6 +88,17 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
           source={(await loadJobSearchConfig()).source}
           scoring={await scoringReadiness()}
           countries={COUNTRIES}
+          timeZone={await lastKnownTimeZone()}
+        />
+      ) : section === "automation" ? (
+        <DigestSection
+          initial={{
+            enabled: settings.digestEnabled,
+            hour: settings.digestHour,
+            includeMarkdown: settings.digestIncludeMarkdown,
+            emailEnabled: settings.digestEmailEnabled,
+          }}
+          emailAvailable={await canEmailDigest()}
           timeZone={await lastKnownTimeZone()}
         />
       ) : section === "google" ? (
@@ -147,6 +174,69 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
 async function scoringReadiness() {
   const config = await loadScoringConfig();
   return { scorer: config.scorer, ready: (await scoringProblem(config)) === null };
+}
+
+// Settings → AI models & usage (master.md §11.3–11.4).
+
+/** The routing rows in display order, with the app provider and model they fall back to. */
+async function aiRoutingView(): Promise<{ rows: TaskRoutingRow[]; appDefault: { providerName: string; model: string } }> {
+  const [config, saved] = await Promise.all([loadAiConfig(), prisma.aiTaskConfig.findMany()]);
+  const byTask = new Map(saved.map((row) => [row.id, row]));
+  // A saved kind the app no longer knows falls back to the app's provider.
+  const kindOf = (choice: string): AiProvider =>
+    (Object.values(AiProvider) as string[]).includes(choice) ? (choice as AiProvider) : config.provider;
+  const rows: TaskRoutingRow[] = ROUTING_TASKS.map(({ key, label, description }) => {
+    const row = byTask.get(key) ?? null;
+    return {
+      task: key,
+      label,
+      description,
+      enabled: row?.enabled ?? true,
+      providerChoice: row?.provider ?? "",
+      providerName: providerOption(kindOf(row?.provider ?? "")).name,
+      savedModel: row?.model ?? "",
+      resolvedModel: (row?.model.trim() || config.model) ?? "",
+      temperature: row?.temperature ?? "",
+      maxTokens: row?.maxTokens ?? null,
+      timeoutSeconds: row?.timeoutSeconds ?? null,
+      retries: row?.retries ?? null,
+      fallbackModel: row?.fallbackModel ?? "",
+      contextLimit: row?.contextLimit ?? null,
+      maxConcurrency: row?.maxConcurrency ?? null,
+    };
+  });
+  return { rows, appDefault: { providerName: providerOption(config.provider).name, model: config.model ?? "" } };
+}
+
+/** The 30-day usage per task (master.md §11.4): only what providers reported, never an estimate. */
+async function usageView(): Promise<UsageView> {
+  const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const [summary, reporting, cost] = await Promise.all([
+    usageSummary(since),
+    prisma.aiUsageLog.groupBy({ by: ["task"], where: { createdAt: { gte: since }, inputTokens: { not: null } } }),
+    prisma.aiUsageLog.aggregate({ _sum: { estimatedCost: true }, where: { createdAt: { gte: since } } }),
+  ]);
+  const labelOf = new Map<string, string>(ROUTING_TASKS.map((task) => [task.key, task.label]));
+  const reported = new Set(reporting.map((row) => row.task));
+  const tasks: UsageView["tasks"] = Object.entries(summary)
+    .map(([task, row]) => ({
+      task,
+      label: labelOf.get(task) ?? task,
+      calls: row.calls,
+      failures: row.failures,
+      inputTokens: row.inputTokens,
+      outputTokens: row.outputTokens,
+      durationMs: row.durationMs,
+      reportsTokens: reported.has(task),
+    }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+  return { tasks, anyCost: cost._sum.estimatedCost !== null, totalCostCents: cost._sum.estimatedCost ?? 0 };
+}
+
+/** Whether the connected Gmail account may send: only then can the digest be emailed. */
+async function canEmailDigest(): Promise<boolean> {
+  const connection = await googleConnection();
+  return connection.status === "connected" && connection.canSend;
 }
 
 /** The connection as the Google section shows it: never a token. */

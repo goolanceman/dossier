@@ -4,7 +4,7 @@ import { AgentCandidateStatus, JobStatus } from "@/generated/prisma/enums";
 import { formatDateTime } from "@/lib/dates";
 import { loadJobSearchConfig } from "@/lib/job-search/config";
 import { countryName } from "@/lib/job-search/countries";
-import { describeSearch, postedAgo, type JobSource } from "@/lib/job-search/search";
+import { describeSearch, postedAgo, postingKey, type JobSource } from "@/lib/job-search/search";
 import { SOURCE_INFO } from "@/lib/job-search/sources";
 import { prisma } from "@/lib/prisma";
 import { loadSettings } from "@/lib/settings-data";
@@ -37,6 +37,8 @@ export type AgentCandidateView = {
   applicationId: string | null;
   /** The job preparing its draft, while one is queued or running. */
   draftJobId: string | null;
+  /** The posting's row, when one was kept from it (a draft, or Find jobs kept the same posting): /intelligence/<id> needs it. */
+  postingId: string | null;
 };
 
 export type AgentView = {
@@ -101,6 +103,18 @@ export async function loadAgentView(now = new Date()): Promise<AgentView> {
   ]);
   const draftJob = new Map(draftJobs.map((job) => [job.key?.replace(/^agent-candidate:/, ""), job.id]));
 
+  // The candidates' posting rows, when any were kept (E14-5): a draft stores one, and so does Find jobs keeping the same posting.
+  const postingIds = new Map(
+    candidates.length === 0
+      ? []
+      : (
+          await prisma.posting.findMany({
+            where: { OR: candidates.map(({ source, externalId }) => ({ source, externalId })) },
+            select: { source: true, externalId: true, id: true },
+          })
+        ).map(({ source, externalId, id }) => [postingKey({ source, externalId }), id] as const),
+  );
+
   const query = settings.agentQuery;
   const source: JobSource | null = config.source;
   const search = query.keywords.trim()
@@ -127,6 +141,7 @@ export async function loadAgentView(now = new Date()): Promise<AgentView> {
     error: candidate.error,
     applicationId: candidate.applicationId,
     draftJobId: draftJob.get(candidate.id) ?? null,
+    postingId: postingIds.get(postingKey(candidate)) ?? null,
   });
   const drafts = candidates.filter((candidate) => candidate.status === AgentCandidateStatus.DRAFTED && candidate.applicationId).map(view);
   const waiting = candidates.filter((candidate) => candidate.status !== AgentCandidateStatus.DRAFTED);

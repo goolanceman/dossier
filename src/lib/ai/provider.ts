@@ -11,6 +11,9 @@ import { AiError, toAiError } from "./errors";
 
 export type ChatMessage = { role: "user" | "assistant"; content: string };
 
+/** The tokens one call used, when the API reports them; missing counts stay undefined, never guessed (master.md §11.4). */
+export type UsageReport = { inputTokens?: number; outputTokens?: number; cachedTokens?: number };
+
 /** How much a model that thinks before answering may think; its own default when unset. */
 export type Effort = "low" | "medium" | "high";
 
@@ -19,11 +22,15 @@ export type CompletionRequest = {
   messages: ChatMessage[];
   /** SET-3. A temperature where the model accepts one; prompts word it for the rest. */
   creativity?: Creativity;
+  /** A temperature of the caller's own, e.g. a task's saved one, instead of the creativity's (master.md §11.3). */
+  temperature?: number;
   /** Where the model can be told; reading tasks don't need long thought. */
   effort?: Effort;
   /** Cancels the call, e.g. when the user leaves or cancels the job. */
   signal?: AbortSignal;
   maxTokens?: number;
+  /** Reports the tokens the API says the call used, when it reports any. */
+  onUsage?: (usage: UsageReport) => void;
 };
 
 export type JsonCompletionRequest<T> = CompletionRequest & {
@@ -58,6 +65,8 @@ export type ChatCall = {
   /** A JSON schema request, when the task wants structured output. */
   json?: { schema: z.ZodType; name: string };
   maxTokens: number;
+  /** Reports the tokens the API says the call used, when it reports any. */
+  onUsage?: (usage: UsageReport) => void;
   signal: AbortSignal;
 };
 
@@ -108,10 +117,11 @@ export abstract class BaseProvider implements AIProvider {
           model,
           system: request.system,
           messages,
-          temperature: request.creativity && this.acceptsTemperature() ? TEMPERATURES[request.creativity] : undefined,
+          temperature: request.temperature ?? (request.creativity && this.acceptsTemperature() ? TEMPERATURES[request.creativity] : undefined),
           effort: request.effort,
           json: schema ? { schema, name: schemaName } : undefined,
           maxTokens: request.maxTokens ?? DEFAULT_MAX_TOKENS,
+          onUsage: request.onUsage,
           signal,
         }),
       );

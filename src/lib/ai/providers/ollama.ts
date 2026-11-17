@@ -45,6 +45,8 @@ export class OllamaProvider extends BaseProvider {
       format: call.json ? z.toJSONSchema(call.json.schema) : undefined,
       options: { temperature: call.temperature, num_predict: call.maxTokens, num_ctx: CONTEXT_TOKENS },
     });
+    // Ollama counts tokens only once it has finished; cached ones it doesn't report.
+    call.onUsage?.({ inputTokens: response.prompt_eval_count, outputTokens: response.eval_count });
     return { text: response.message.content, cutOff: response.done_reason === "length" };
   }
 

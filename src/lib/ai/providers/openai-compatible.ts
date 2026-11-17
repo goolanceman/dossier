@@ -185,6 +185,12 @@ export class OpenAICompatibleProvider extends BaseProvider {
       { signal: call.signal },
     );
     const choice = completion.choices[0];
+    // Token counts for the usage log, when the server reports them (master.md §11.4).
+    call.onUsage?.({
+      inputTokens: completion.usage?.prompt_tokens,
+      outputTokens: completion.usage?.completion_tokens,
+      cachedTokens: completion.usage?.prompt_tokens_details?.cached_tokens ?? undefined,
+    });
     // Mistral says `model_length` when the context ran out instead.
     const finish: string | undefined = choice?.finish_reason;
     return {

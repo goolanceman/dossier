@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 
 import { PageHeader } from "@/components/page-header";
 import { buttonClassName } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import type { DayPeriod } from "@/lib/greeting";
 import { STATUSES } from "@/lib/status";
 
 import { ActivityChart } from "./activity-chart";
+import { DashboardCareerIntel } from "./dashboard-career-intel";
 import { FunnelChart } from "./funnel-chart";
 import { Greeting } from "./greeting";
 import { PeriodFilter, PeriodScoped } from "./period-filter";
@@ -82,8 +83,11 @@ export function Dashboard({
 }
 
 /**
- * The cards, with the calendar beside them where there's room for both.
- * Where there isn't, it comes after them, as wide as one card.
+ * The cards, with the calendar beside them where there's room for both, and
+ * the career intelligence section (Phase 14) across the full width under
+ * both. Where there isn't room, the calendar comes after the cards, as wide
+ * as one card. The career intelligence loads on its own, so these cards
+ * show without waiting for it.
  */
 function Columns({ calendar, children }: { calendar?: ReactNode; children: ReactNode }) {
   return (
@@ -91,6 +95,9 @@ function Columns({ calendar, children }: { calendar?: ReactNode; children: React
       <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-5 @min-[1240px]:grid-cols-[minmax(0,1200px)_400px]">
         {children}
         {calendar && <div className="min-w-0 @min-[780px]:max-w-[calc(50%-10px)] @min-[1240px]:max-w-none">{calendar}</div>}
+        <Suspense fallback={null}>
+          <DashboardCareerIntel />
+        </Suspense>
       </div>
     </div>
   );

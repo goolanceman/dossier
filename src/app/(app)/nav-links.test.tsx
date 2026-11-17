@@ -27,8 +27,12 @@ describe("NavLinks", () => {
     expect(screen.getAllByRole("link").map((link) => link.textContent)).toEqual([
       "Dashboard",
       "Profile",
+      "Career",
       "Base resume",
+      "Resume intelligence",
       "Find jobs",
+      "Discovery",
+      "Interview prep",
       "Startups",
       "Agent",
       "Applications",

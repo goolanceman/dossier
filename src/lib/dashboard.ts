@@ -1,4 +1,4 @@
-import { ApplicationStatus, FunnelStage } from "@/generated/prisma/enums";
+import { ApplicationStatus, FunnelStage, type AssessmentDecision } from "@/generated/prisma/enums";
 import { daysBetween, formatDateTime, formatDay, formatShortCalendarDate, formatTime } from "@/lib/dates";
 import { FUNNEL_STAGES, STATUSES } from "@/lib/status";
 
@@ -200,6 +200,108 @@ function weeklyActivity(applications: readonly DashboardApplication[], now: Date
     if (sent >= 0) recent[sent].sent += 1;
   }
   return recent;
+}
+
+// The career intelligence section (master.md Phase 14): what discovery found,
+// what it's worth, what's waiting on the user, how preparation stands, what
+// pay looks like and what the AI calls cost, worked out on the server from
+// real rows, so nothing here is ever invented.
+
+/** A best match worth opening: one of the top assessed jobs by score. */
+export type CareerIntelMatch = {
+  postingId: string;
+  title: string;
+  company: string;
+  score: number;
+  decision: AssessmentDecision;
+};
+
+/** What's waiting on the user: jobs without a decision, gap questions without an answer. */
+export type CareerIntelReview = {
+  /** JobAssessments worth a human look that don't have one yet. */
+  jobs: number;
+  /** Gap questions still OPEN. */
+  questions: number;
+};
+
+/** How the interview and learning preparation stands. */
+export type CareerIntelProgress = {
+  preparedQuestions: number;
+  totalQuestions: number;
+  completedTopics: number;
+  totalTopics: number;
+  /** Mock interviews seen through to their feedback. */
+  mockSessions: number;
+  /** Their mean score, rounded; null when none of them reported a score. */
+  mockMeanScore: number | null;
+};
+
+/** One salary insight, worded on the server (estimateLabel's label, master.md §4). */
+export type CareerIntelSalary = {
+  id: string;
+  title: string;
+  company: string;
+  /** The range in words, or null when there's no figure to show. */
+  range: string | null;
+  /** Where the figure came from, always shown with it. */
+  statusLabel: string;
+  /** The posting's intelligence page, when the figure belongs to one. */
+  postingId: string | null;
+};
+
+/** AI calls over the last 7 days, summed from the usage logs. Providers that don't report a figure leave it null: never guessed. */
+export type CareerIntelUsage = {
+  calls: number;
+  failures: number;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  /** In the app's base unit (cents), only where a price could be applied. */
+  estimatedCost: number | null;
+};
+
+/** One recommended next action, derived from real counts. */
+export type CareerIntelAction = { reason: string; href: string; action: string };
+
+/** Everything the career intelligence section shows; null when there's nothing to show at all. */
+export type CareerIntel = {
+  /** New jobs the last 7 days of discovery runs fetched; null when there are no enabled profiles to run. */
+  newJobs: number | null;
+  bestMatches: CareerIntelMatch[];
+  review: CareerIntelReview;
+  progress: CareerIntelProgress | null;
+  salaries: CareerIntelSalary[];
+  usage: CareerIntelUsage;
+  actions: CareerIntelAction[];
+};
+
+const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
+
+/** What the recommended next actions are derived from, all real counts. */
+export type CareerNextActionsInput = {
+  /** Whether an enabled discovery profile exists to run. */
+  profiles: boolean;
+  /** Discovery runs in the last 7 days. */
+  runsLast7Days: number;
+  /** Jobs waiting for a review decision. */
+  reviewJobs: number;
+  /** Gap questions waiting for answers. */
+  openQuestions: number;
+  /** Interview questions not yet prepared. */
+  unpreparedQuestions: number;
+};
+
+/**
+ * Up to 3 recommended next actions (master.md Phase 14), most pressing
+ * first: answers, reviews, a run to start, questions to prepare. Nothing
+ * when there's nothing to do.
+ */
+export function careerNextActions(input: CareerNextActionsInput): CareerIntelAction[] {
+  const actions: CareerIntelAction[] = [];
+  if (input.openQuestions > 0) actions.push({ reason: `${plural(input.openQuestions, "gap question waits", "gap questions wait")} for answers.`, href: "/interview", action: "Answer" });
+  if (input.reviewJobs > 0) actions.push({ reason: `${plural(input.reviewJobs, "job waits", "jobs wait")} for your review.`, href: "/discovery", action: "Review" });
+  if (input.profiles && input.runsLast7Days === 0) actions.push({ reason: "No discovery runs in the last 7 days. Run one from Discovery.", href: "/discovery", action: "Run" });
+  if (input.unpreparedQuestions > 0) actions.push({ reason: `${plural(input.unpreparedQuestions, "interview question is left", "interview questions are left")} to prepare.`, href: "/interview", action: "Prepare" });
+  return actions.slice(0, 3);
 }
 
 /**

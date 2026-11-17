@@ -19,6 +19,25 @@ function section(text: string, label: string): unknown {
   return JSON.parse(end < 0 ? rest : rest.slice(0, end));
 }
 
+/** The evidence library as the assessment and interview prompts carry it, so answers point at real ids. */
+type EvidenceAchievement = { id: string; title: string; summary: string };
+function achievementsOf(messages: Message[]): EvidenceAchievement[] {
+  const content = messages[1]?.content ?? "";
+  for (const label of [
+    "The candidate's achievements, by id, that answers may point at as evidence:\n",
+    "The candidate's achievements, by id, that answers can draw on:\n",
+  ]) {
+    const found = section(content, label);
+    if (Array.isArray(found)) return found;
+  }
+  return [];
+}
+
+/** The achievement a spec can rely on: the one whose title says the payout flow redesign. */
+function payoutEvidence(messages: Message[]): string | null {
+  return achievementsOf(messages).find((achievement) => /payout flow redesign/i.test(achievement.title))?.id ?? null;
+}
+
 type Profile = {
   summary: string;
   skills: string[];
@@ -199,6 +218,335 @@ const answers: Record<string, (messages: Message[]) => unknown> = {
     const lines = current.split("\n").filter(Boolean);
     return { text: lines.length > 1 ? lines.reverse().join("\n") : `In short: ${current}` };
   },
+
+  // ── Career intelligence (master.md Phase 20) ─────────────────────────────
+  // Each answer validates against its zod contract in src/lib/ai/task-contracts.ts,
+  // and stays honest: evidence ids come from the prompt's own library, figures
+  // and sources only when the prompt carried them.
+
+  // The pipeline's cheap first look (§2.4 stage 3): the fake sources' design
+  // postings are worth a full look.
+  screen_posting: () => ({
+    schema_version: "1.0",
+    task: "screen_posting",
+    verdict: "SHORTLIST",
+    reasons: ["The posting's design requirements match the profile's product design experience."],
+    confidence: "HIGH",
+  }),
+
+  // The deep assessment (§3.2–3.3): requirement by requirement, pointing at
+  // the library's own achievement when the prompt carries one. The stored
+  // score is the app's weighted sum of the dimensions (75 with the default
+  // weights), so a spec knows what to expect.
+  job_assessment: (messages) => {
+    const payout = payoutEvidence(messages);
+    return {
+      schema_version: "1.0",
+      task: "job_assessment",
+      decision: {
+        recommendation: "APPLY_AFTER_PREPARATION",
+        compatibilityScore: 82,
+        confidence: "MEDIUM",
+        mandatoryRejection: false,
+        summary: "A strong match on product design fundamentals, with prototyping depth still to show.",
+      },
+      dimensions: {
+        technicalSkills: 80,
+        relevantExperience: 75,
+        responsibilities: 80,
+        architecture: 60,
+        seniority: 80,
+        domain: 40,
+        locationRemote: 90,
+        employmentConditions: 60,
+      },
+      requirements: [
+        {
+          requirement: "5+ years of product design",
+          importance: "REQUIRED",
+          status: payout ? "STRONG_EVIDENCE" : "PARTIAL_EVIDENCE",
+          evidenceIds: payout ? [payout] : [],
+          jdQuotes: ["5+ years of product design"],
+          explanation: payout
+            ? "The library's payout flow redesign shows senior design work over years."
+            : "The profile shows design experience, but no achievement in the library backs the years.",
+          confidence: "HIGH",
+        },
+        {
+          requirement: "Strong prototyping skills in Figma",
+          importance: "REQUIRED",
+          status: "MISSING_EVIDENCE",
+          evidenceIds: [],
+          jdQuotes: ["Strong prototyping skills in Figma"],
+          explanation: "Nothing in the profile or the library shows prototyping in Figma.",
+          confidence: "MEDIUM",
+        },
+      ],
+      strengths: ["The payout flow redesign matches this role's payments domain."],
+      gaps: ["No verified evidence of prototyping in Figma."],
+      transferableSkills: [],
+      risks: [],
+      nextActions: ["Answer the gap questions on prototyping before applying."],
+    };
+  },
+
+  // Salary research (Phase 4): the e2e wiring passes no research notes and no
+  // allowed URLs, so the honest answer is that nothing is known: no figures,
+  // no sources, nothing invented.
+  salary_research: () => ({
+    schema_version: "1.0",
+    task: "salary_research",
+    status: "UNAVAILABLE",
+    minimum: null,
+    median: null,
+    maximum: null,
+    currency: "EUR",
+    basis: "ANNUAL",
+    confidence: "LOW",
+    sources: [],
+    methodology: "The research notes given were empty, so there was nothing to read a figure from.",
+  }),
+
+  // The resume critique (§5.1–5.2): three findings across severities, and an
+  // overall score the app labels an internal diagnostic estimate.
+  resume_critique: () => ({
+    schema_version: "1.0",
+    task: "resume_critique",
+    overall: {
+      score: 64,
+      atsReadiness: "FAIR",
+      summary: "The resume reads well but states duties rather than results; the numbers are what would change it most.",
+    },
+    findings: [
+      {
+        id: "F1",
+        category: "CONTENT",
+        severity: "CRITICAL",
+        title: "The payout redesign carries no metric",
+        currentProblem: "The redesign of the merchant payout flow names no outcome, so a reader can't tell what changed.",
+        recommendation: "Add the number the redesign moved, such as error rate or payout time, with where it was measured.",
+        expectedImpact: "A measurable result makes the resume's strongest claim specific.",
+        effort: "LIGHT",
+        evidenceRequired: ["The metric the payout redesign moved, and where it was measured"],
+        relatedJobRequirements: ["5+ years of product design"],
+        confidence: "HIGH",
+      },
+      {
+        id: "F2",
+        category: "ATS",
+        severity: "HIGH",
+        title: "Section headings a scanner may miss",
+        currentProblem: "The resume's sections aren't named the standard way, so an ATS may file experience under the wrong heading.",
+        recommendation: "Use the standard headings: Experience, Projects, Education, Skills.",
+        expectedImpact: "The scanner keeps every role with the dates it needs.",
+        effort: "LIGHT",
+        evidenceRequired: [],
+        relatedJobRequirements: [],
+        confidence: "MEDIUM",
+      },
+      {
+        id: "F3",
+        category: "WRITING",
+        severity: "MEDIUM",
+        title: "Duties where results should be",
+        currentProblem: "Several bullets state what the role covered day to day rather than what changed because of it.",
+        recommendation: "Rewrite two bullets as what changed, each with the number it moved.",
+        expectedImpact: "The six-second recruiter read lands on results, not duties.",
+        effort: "MEDIUM",
+        evidenceRequired: ["One number per rewritten bullet"],
+        relatedJobRequirements: ["Strong prototyping skills in Figma"],
+        confidence: "MEDIUM",
+      },
+    ],
+    keywordCoverage: ["product design", "Figma", "payments"],
+    formattingIssues: ["The skills list mixes tools and levels in one line."],
+    strengths: ["The summary names the domain, payments, in its first sentence."],
+  }),
+
+  // Gap questions (Phase 6): what the profile doesn't answer. alreadyKnown is
+  // false throughout, so the app's cleaning keeps both.
+  gap_questions: () => ({
+    schema_version: "1.0",
+    task: "gap_questions",
+    questions: [
+      {
+        id: "q1",
+        question: "What did the payout redesign change for merchants, as a number you can share?",
+        reason: "The library's payout redesign has no metric, and the posting asks for results.",
+        relatedRequirement: "5+ years of product design",
+        expectedInformation: ["The number the redesign moved, and how it was measured"],
+        questionType: "METRICS",
+        priority: "HIGH",
+        alreadyKnown: false,
+      },
+      {
+        id: "q2",
+        question: "Which part of a design system did you maintain yourself, and what did you change?",
+        reason: "The posting asks for design system work; the profile names none.",
+        relatedRequirement: "Strong prototyping skills in Figma",
+        expectedInformation: ["The components you owned and one change you made"],
+        questionType: "TECHNICAL",
+        priority: "MEDIUM",
+        alreadyKnown: false,
+      },
+    ],
+  }),
+
+  // Interview preparation (Phase 7): three predicted questions across stages,
+  // one of them drawing on the library's achievement.
+  interview_preparation: (messages) => {
+    const payout = payoutEvidence(messages);
+    return {
+      schema_version: "1.0",
+      task: "interview_preparation",
+      role: "Senior Product Designer",
+      questions: [
+        {
+          id: "q1",
+          category: "RECRUITER",
+          difficulty: "BEGINNER",
+          question: "Walk me through your background and why this role fits it.",
+          whyAsked: "The recruiter screen checks that the story matches the resume.",
+          relatedRequirement: "",
+          expectedTopics: ["The role you're aiming at", "Why payments"],
+          answerStructure: ["Your present role", "The payout flow redesign", "Why this team"],
+          evidenceIds: [],
+          followUps: ["Which team are you leaving, and why?"],
+          commonMistakes: ["Re-reading the resume instead of telling the story"],
+          resources: [],
+        },
+        {
+          id: "q2",
+          category: "TECHNICAL",
+          difficulty: "INTERMEDIATE",
+          question: "How do you decide what to prototype first when a flow is complex?",
+          whyAsked: "The role's core work is prototyping complex flows.",
+          relatedRequirement: "Strong prototyping skills in Figma",
+          expectedTopics: ["Risk first", "Fidelity by question"],
+          answerStructure: ["Name the question the prototype answers", "Pick the smallest fidelity that answers it"],
+          evidenceIds: payout ? [payout] : [],
+          followUps: ["When has a prototype misled you?"],
+          commonMistakes: ["Naming tools instead of decisions"],
+          resources: ["prototyping fidelity"],
+        },
+        {
+          id: "q3",
+          category: "SYSTEM_DESIGN",
+          difficulty: "ADVANCED",
+          question: "Design a dashboard merchants use to reconcile thousands of payouts a day.",
+          whyAsked: "The team's product is payouts at scale.",
+          relatedRequirement: "",
+          expectedTopics: ["Information hierarchy", "Error states"],
+          answerStructure: ["The merchant's job to be done", "The one number to surface first"],
+          evidenceIds: [],
+          followUps: ["What breaks at ten times the volume?"],
+          commonMistakes: ["Jumping to visuals before the job"],
+          resources: ["dashboard hierarchy"],
+        },
+      ],
+      preparationTopics: ["Payments flows", "Prototyping decisions"],
+      readiness: { score: null, confidence: "LOW", reasoning: "The library has one verified achievement, too thin to score readiness on." },
+    };
+  },
+
+  // The interviewer's verdict on one mock answer (§7.5): fixed dimension
+  // scores, so a session's score is always round((72+70+66+78+80)/5) = 73.
+  mock_feedback: () => ({
+    schema_version: "1.0",
+    task: "mock_feedback",
+    technicalAccuracy: 72,
+    structure: 70,
+    depth: 66,
+    communication: 78,
+    evidenceUse: 80,
+    strengths: ["The answer stayed on the question and named a concrete flow."],
+    improvements: ["Close with the number the redesign moved, so the result is measurable."],
+    suggestedAnswerPoints: [
+      "Open with the situation: payouts arrived late and unexplained.",
+      "Name your own part in the redesign.",
+      "Close with the measured result.",
+    ],
+  }),
+
+  // Company research (Phase 9): no notes and no allowed URLs in the e2e run,
+  // so every fact is the model's reading, with an empty sourceUrl.
+  company_research: () => ({
+    schema_version: "1.0",
+    task: "company_research",
+    overview: "The research notes given were empty, so nothing here is confirmed: what follows is a reading of the job at hand only.",
+    products: [{ fact: "A payments dashboard for marketplace sellers is the product this role works on.", sourceUrl: "", kind: "INTERPRETATION" }],
+    techStack: [],
+    engineeringCulture: [{ fact: "The posting's emphasis on prototyping suggests a team that ships and measures.", sourceUrl: "", kind: "INTERPRETATION" }],
+    recentDevelopments: [],
+    funding: "",
+    companySize: "",
+    locations: [],
+    remotePolicy: "",
+    whyCompany: "The payments domain matches the payout redesign in your library, so the work builds on what you can already prove.",
+    whyRole: "The role asks for the complex-flow prototyping your redesign demonstrates.",
+    checklist: ["Check the company's own site for what the payments team ships now."],
+    questionsToAsk: ["What is the payments team's current top priority?"],
+  }),
+
+  // Learning plan (Phase 8): two topics, the second building on the first.
+  learning_plan: () => ({
+    schema_version: "1.0",
+    task: "learning_plan",
+    goal: "Close the gaps between your library and the target role",
+    topics: [
+      {
+        title: "Payments fundamentals for designers",
+        prerequisites: [],
+        effortHours: 6,
+        exercises: ["Map a payout flow end to end, from charge to settlement."],
+        miniProjects: ["Sketch a reconciliation screen for a marketplace seller."],
+        interviewQuestions: ["Where do payment flows usually break for merchants?"],
+        resources: ["payments primer"],
+      },
+      {
+        title: "Measuring design work",
+        prerequisites: ["Payments fundamentals for designers"],
+        effortHours: 4,
+        exercises: ["Add one measurable outcome to an achievement in your library."],
+        miniProjects: [],
+        interviewQuestions: [],
+        resources: [],
+      },
+    ],
+  }),
+
+  // Knowledge-base review (§1.3): findings that quote the document for real
+  // (the app drops quotes it can't find again), and one draft achievement,
+  // which lands as Imported (unverified).
+  knowledge_doc_review: () => ({
+    schema_version: "1.0",
+    task: "knowledge_doc_review",
+    findings: [
+      {
+        id: "D1",
+        kind: "MISSING_METRIC",
+        note: "The redesign says it was led but gives no number for what changed.",
+        quote: "I led the redesign of the merchant payout flow, working with research and compliance.",
+        duplicateOf: "",
+      },
+      {
+        id: "D2",
+        kind: "UNEVIDENCED_TECH",
+        note: "Kafka is named without anything it was used for.",
+        quote: "We used Kafka, Postgres and React.",
+        duplicateOf: "",
+      },
+    ],
+    achievements: [
+      {
+        title: "Delivered the new payout dashboard",
+        description: "Delivered the new payout dashboard for the merchant payouts team.",
+        technologies: ["Kafka", "Postgres", "React"],
+        company: "Ledgerly Payments",
+        metrics: [],
+      },
+    ],
+  }),
 };
 
 createServer((request, response) => {

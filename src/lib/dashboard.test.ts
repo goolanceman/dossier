@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { dashboardFigures, periodFromParam, type DashboardApplication } from "./dashboard";
+import { careerNextActions, dashboardFigures, periodFromParam, type DashboardApplication } from "./dashboard";
 
 const now = new Date(2026, 8, 28, 12);
 const daysAgo = (days: number) => new Date(now.getTime() - days * 86_400_000);
@@ -250,5 +250,31 @@ describe("replies in Worth a look (E15-3)", () => {
       ["offer", "Answer", "conversation", "2 replies are waiting. Asks about your start date."],
       ["other", "Review", null, "An offer is waiting on your decision."],
     ]);
+  });
+});
+
+describe("careerNextActions (Phase 14)", () => {
+  it("recommends what to do next, most pressing first", () => {
+    expect(careerNextActions({ profiles: true, runsLast7Days: 0, reviewJobs: 1, openQuestions: 2, unpreparedQuestions: 5 })).toEqual([
+      { reason: "2 gap questions wait for answers.", href: "/interview", action: "Answer" },
+      { reason: "1 job waits for your review.", href: "/discovery", action: "Review" },
+      { reason: "No discovery runs in the last 7 days. Run one from Discovery.", href: "/discovery", action: "Run" },
+    ]);
+  });
+
+  it("caps at three, so the fourth waits", () => {
+    const actions = careerNextActions({ profiles: true, runsLast7Days: 0, reviewJobs: 1, openQuestions: 1, unpreparedQuestions: 1 });
+    expect(actions).toHaveLength(3);
+    expect(actions.map((action) => action.reason)).not.toContain("1 interview question is left to prepare.");
+  });
+
+  it("only suggests a run when there's an enabled profile to run", () => {
+    expect(careerNextActions({ profiles: false, runsLast7Days: 0, reviewJobs: 0, openQuestions: 0, unpreparedQuestions: 4 }).map((action) => action.reason)).toEqual([
+      "4 interview questions are left to prepare.",
+    ]);
+  });
+
+  it("says nothing when there's nothing to do", () => {
+    expect(careerNextActions({ profiles: true, runsLast7Days: 2, reviewJobs: 0, openQuestions: 0, unpreparedQuestions: 0 })).toEqual([]);
   });
 });
