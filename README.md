@@ -5,6 +5,13 @@
 <h1 align="center">Dossier</h1>
 
 <p align="center">
+  <a href="https://github.com/AienTech/dossier"><img alt="Forked from AienTech/dossier" src="https://img.shields.io/badge/fork-AienTech%2Fdossier-blue"></a>
+</p>
+
+> [!NOTE]
+> This repository is a fork of [AienTech/dossier](https://github.com/AienTech/dossier).
+
+<p align="center">
   Your job search, on your own server: one profile, a tailored resume and cover letter for every job, and every application tracked from draft to offer.
 </p>
 
